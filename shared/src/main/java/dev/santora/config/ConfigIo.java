@@ -40,7 +40,10 @@ public final class ConfigIo {
 			JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
 
 			config.setCrossfadeMillis(getInt(json, "crossfade_millis", config.crossfadeMillis()));
-			config.setTrackDelayMillis(getInt(json, "track_delay_millis", config.trackDelayMillis()));
+			config.setCrossfadeOn(getBool(json, "crossfade_on", config.crossfadeMillis() > 0));
+			int legacyDelay = getInt(json, "track_delay_millis", 0);
+			config.setDelayMinMillis(getInt(json, "track_delay_min_millis", legacyDelay));
+			config.setDelayMaxMillis(getInt(json, "track_delay_max_millis", legacyDelay));
 			config.setVolume(getFloat(json, "volume", config.volume()));
 			config.setShuffle(getBool(json, "shuffle", config.shuffle()));
 			config.setRepeat(parseRepeat(getString(json, "repeat", config.repeat().name())));
@@ -56,8 +59,10 @@ public final class ConfigIo {
 
 	public static void save(SantoraConfig config) {
 		JsonObject json = new JsonObject();
+		json.addProperty("crossfade_on", config.crossfadeOn());
 		json.addProperty("crossfade_millis", config.crossfadeMillis());
-		json.addProperty("track_delay_millis", config.trackDelayMillis());
+		json.addProperty("track_delay_min_millis", config.delayMinMillis());
+		json.addProperty("track_delay_max_millis", config.delayMaxMillis());
 		json.addProperty("volume", config.volume());
 		json.addProperty("shuffle", config.shuffle());
 		json.addProperty("repeat", config.repeat().name());

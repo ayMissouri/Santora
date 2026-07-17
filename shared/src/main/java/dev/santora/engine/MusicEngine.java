@@ -30,6 +30,7 @@ import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class MusicEngine {
 
@@ -253,6 +254,14 @@ public final class MusicEngine {
 		config.setRepeat(mode);
 	}
 
+	public void setVolume(float volume) {
+		config.setVolume(volume);
+		// Mid-crossfade the fade tick reapplies gains anyway.
+		if (current != null && outgoing == null) {
+			current.instance.setGain(config.volume());
+		}
+	}
+
 	public void tick() {
 		if (!manualMode || paused) {
 			return;
@@ -316,7 +325,7 @@ public final class MusicEngine {
 
 	private void onTrackEnded() {
 		current = null;
-		int gap = config.effectiveDelayMillis();
+		int gap = config.delayMillisAt(ThreadLocalRandom.current().nextFloat());
 		if (gap > 0) {
 			resumeAtMs = now() + gap;
 		} else {
@@ -413,6 +422,13 @@ public final class MusicEngine {
 	// Now playing info
 	public Track currentTrack() {
 		return current == null ? null : current.track;
+	}
+
+	public long delayRemainingMillis() {
+		if (current != null || resumeAtMs == 0) {
+			return -1;
+		}
+		return Math.max(0, resumeAtMs - now());
 	}
 
 	// Since minecraft doesnt show the current song position, I just measure it manually.

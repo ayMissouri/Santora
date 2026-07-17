@@ -1,6 +1,7 @@
 package dev.santora.ui;
 
 import dev.santora.Santora;
+import dev.santora.core.config.SantoraConfig;
 import dev.santora.core.model.Album;
 import dev.santora.core.model.AlbumKind;
 import dev.santora.core.model.MusicContext;
@@ -35,7 +36,8 @@ public final class SantoraUi {
 		ARTISTS("Artists"),
 		UPDATES("Updates"),
 		PLAYLISTS("Playlists"),
-		QUEUE("Queue");
+		QUEUE("Queue"),
+		SETTINGS("Settings");
 
 		final String label;
 
@@ -50,6 +52,7 @@ public final class SantoraUi {
 
 	private static int gridScroll;
 	private static int trackScroll;
+	private static int settingsScroll;
 
 	private static final int DRAG_THRESHOLD = 4;
 	private static final int DRAG_EDGE = 14;
@@ -63,6 +66,19 @@ public final class SantoraUi {
 	private int dragIndex = -1;
 	private int dragArmY;
 	private boolean dragging;
+
+	private static final int SETTINGS_ROW_HEIGHT = 28;
+	private static final int SETTINGS_ROW_COUNT = 5;
+	private static final int SLIDER_WIDTH = 110;
+	private static final int VALUE_WIDTH = 46;
+
+	private static final int SLIDER_NONE = 0;
+	private static final int SLIDER_CROSSFADE = 1;
+	private static final int SLIDER_DELAY_MIN = 2;
+	private static final int SLIDER_DELAY_MAX = 3;
+	private static final int SLIDER_VOLUME = 4;
+
+	private int activeSlider = SLIDER_NONE;
 
 	private record MenuItem(String label, Runnable action) {
 	}
@@ -324,7 +340,7 @@ public final class SantoraUi {
 			case ARTISTS -> library.artistAlbums();
 			case UPDATES -> library.updateAlbums();
 			case PLAYLISTS -> engine.playlistAlbums();
-			case QUEUE -> List.of();
+			case QUEUE, SETTINGS -> List.of();
 		};
 	}
 
@@ -348,6 +364,11 @@ public final class SantoraUi {
 
 	private void renderMain(SantoraCanvas canvas, int mouseX, int mouseY) {
 		Rect main = mainRect();
+
+		if (view == View.SETTINGS) {
+			renderSettings(canvas, mouseX, mouseY);
+			return;
+		}
 
 		if (engine.library().isEmpty()) {
 			canvas.textCentered("Indexing music...", main.x() + main.w() / 2,
@@ -455,6 +476,218 @@ public final class SantoraUi {
 		String queued = engine.queue().upcomingCount() + " up next";
 		canvas.text(queued, main.right() - Theme.PADDING - canvas.textWidth(queued),
 				main.y() + 7, Theme.TEXT_SECONDARY, false);
+	}
+
+	// Settings
+	private Rect settingsRowRect(int row) {
+		Rect main = mainRect();
+		return new Rect(main.x() + Theme.PADDING,
+				main.y() + 24 + row * SETTINGS_ROW_HEIGHT - settingsScroll,
+				main.w() - Theme.PADDING * 2, SETTINGS_ROW_HEIGHT);
+	}
+
+	private Rect settingsSliderRect(int row) {
+		Rect rowRect = settingsRowRect(row);
+		int x = rowRect.right() - VALUE_WIDTH - 6 - SLIDER_WIDTH;
+		return new Rect(x, rowRect.y() + (rowRect.h() - 9) / 2, SLIDER_WIDTH, 9);
+	}
+
+	private Rect settingsSwitchRect(int row) {
+		Rect rowRect = settingsRowRect(row);
+		return new Rect(rowRect.right() - 22, rowRect.y() + (rowRect.h() - 12) / 2, 22, 12);
+	}
+
+	private int settingsContentHeight() {
+		return 24 + SETTINGS_ROW_COUNT * SETTINGS_ROW_HEIGHT + Theme.PADDING;
+	}
+
+	private void renderSettings(SantoraCanvas canvas, int mouseX, int mouseY) {
+		Rect main = mainRect();
+		SantoraConfig config = engine.config();
+		settingsScroll = clamp(settingsScroll, 0, Math.max(0, settingsContentHeight() - main.h()));
+
+		canvas.pushScissor(main.x(), main.y(), main.w(), main.h());
+		canvas.text("Settings", main.x() + Theme.PADDING, main.y() + 7 - settingsScroll,
+				Theme.TEXT_PRIMARY, false);
+
+		renderSwitchRow(canvas, 0, "Crossfade", "Blend each track into the next",
+				config.crossfadeOn(), mouseX, mouseY);
+
+		renderSliderRow(canvas, 1, "Fade duration", "How long the blend lasts",
+				config.crossfadeMillis() / (float) SantoraConfig.CROSSFADE_MAX_MILLIS,
+				formatSeconds(config.crossfadeMillis()),
+				!config.crossfadeOn(), SLIDER_CROSSFADE, mouseX, mouseY);
+
+		renderDelayRow(canvas, 2, mouseX, mouseY);
+
+		renderSliderRow(canvas, 3, "Volume", "Only affects Santora's playback",
+				config.volume(), Math.round(config.volume() * 100) + "%",
+				false, SLIDER_VOLUME, mouseX, mouseY);
+
+		renderSwitchRow(canvas, 4, "Resume on launch", "Keep playing where you left off",
+				config.resumeOnLaunch(), mouseX, mouseY);
+
+		canvas.popScissor();
+	}
+
+	private void renderSettingLabels(SantoraCanvas canvas, int row, String label, String sub,
+			int controlX) {
+		Rect rowRect = settingsRowRect(row);
+		int max = controlX - 6 - rowRect.x();
+		canvas.text(canvas.ellipsize(label, max), rowRect.x(), rowRect.y() + 4,
+				Theme.TEXT_PRIMARY, false);
+		canvas.text(canvas.ellipsize(sub, max), rowRect.x(), rowRect.y() + 15,
+				Theme.TEXT_MUTED, false);
+	}
+
+	private void renderSwitchRow(SantoraCanvas canvas, int row, String label, String sub,
+			boolean on, int mouseX, int mouseY) {
+		Rect toggle = settingsSwitchRect(row);
+		renderSettingLabels(canvas, row, label, sub, toggle.x());
+
+		boolean hover = toggle.contains(mouseX, mouseY, 2);
+		int track = on ? Theme.ACCENT : Theme.PROGRESS_TRACK;
+		if (hover) {
+			track = Theme.blend(track, 0xFFFFFFFF, 0.12f);
+		}
+		canvas.fill(toggle.x(), toggle.y(), toggle.right(), toggle.bottom(), track);
+		int knobX = on ? toggle.right() - 10 : toggle.x() + 2;
+		canvas.fill(knobX, toggle.y() + 2, knobX + 8, toggle.bottom() - 2,
+				on ? Theme.ON_ACCENT : Theme.TEXT_SECONDARY);
+	}
+
+	private void renderSliderRow(SantoraCanvas canvas, int row, String label, String sub,
+			float t, String value, boolean dimmed, int slider, int mouseX, int mouseY) {
+		Rect track = settingsSliderRect(row);
+		renderSettingLabels(canvas, row, label, sub, track.x());
+
+		int cy = track.y() + track.h() / 2;
+		canvas.fill(track.x(), cy - 1, track.right(), cy + 1, Theme.PROGRESS_TRACK);
+		int handleX = handleX(track, t);
+		canvas.fill(track.x(), cy - 1, handleX, cy + 1, dimmed ? Theme.ACCENT_DIM : Theme.ACCENT);
+		boolean hover = activeSlider == slider
+				|| (activeSlider == SLIDER_NONE && track.contains(mouseX, mouseY, 3));
+		canvas.fill(handleX, track.y(), handleX + 3, track.bottom(),
+				hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
+
+		renderSettingValue(canvas, row, value);
+	}
+
+	private void renderDelayRow(SantoraCanvas canvas, int row, int mouseX, int mouseY) {
+		SantoraConfig config = engine.config();
+		Rect track = settingsSliderRect(row);
+		boolean fading = config.crossfadeEnabled();
+		renderSettingLabels(canvas, row, "Delay between tracks",
+				fading ? "Off while crossfade is on" : "Waits a random time in this range",
+				track.x());
+
+		float tMin = config.delayMinMillis() / (float) SantoraConfig.DELAY_MAX_MILLIS;
+		float tMax = config.delayMaxMillis() / (float) SantoraConfig.DELAY_MAX_MILLIS;
+		int cy = track.y() + track.h() / 2;
+		canvas.fill(track.x(), cy - 1, track.right(), cy + 1, Theme.PROGRESS_TRACK);
+
+		int minX = handleX(track, tMin);
+		int maxX = handleX(track, tMax);
+		canvas.fill(minX, cy - 1, maxX + 3, cy + 1, fading ? Theme.ACCENT_DIM : Theme.ACCENT);
+
+		int picked = activeSlider != SLIDER_NONE ? activeSlider
+				: track.contains(mouseX, mouseY, 3) ? pickDelayHandle(track, mouseX) : SLIDER_NONE;
+		canvas.fill(minX, track.y(), minX + 3, track.bottom(),
+				picked == SLIDER_DELAY_MIN ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
+		canvas.fill(maxX, track.y(), maxX + 3, track.bottom(),
+				picked == SLIDER_DELAY_MAX ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
+
+		renderSettingValue(canvas, row, formatDelayRange(config));
+	}
+
+	private void renderSettingValue(SantoraCanvas canvas, int row, String value) {
+		Rect rowRect = settingsRowRect(row);
+		canvas.text(value, rowRect.right() - canvas.textWidth(value),
+				rowRect.y() + (rowRect.h() - canvas.lineHeight()) / 2 + 1, Theme.TEXT_SECONDARY, false);
+	}
+
+	private static int handleX(Rect track, float t) {
+		float clamped = t < 0f ? 0f : (t > 1f ? 1f : t);
+		return track.x() + Math.round((track.w() - 3) * clamped);
+	}
+
+	private static float sliderT(Rect track, int mouseX) {
+		float t = (mouseX - track.x()) / (float) (track.w() - 3);
+		return t < 0f ? 0f : (t > 1f ? 1f : t);
+	}
+
+	private static String formatSeconds(int millis) {
+		if (millis == 0) {
+			return "Off";
+		}
+		return millis % 1000 == 0 ? millis / 1000 + "s"
+				: String.format(java.util.Locale.ROOT, "%.1fs", millis / 1000f);
+	}
+
+	private static String formatDelayRange(SantoraConfig config) {
+		int min = config.delayMinMillis() / 1000;
+		int max = config.delayMaxMillis() / 1000;
+		if (max == 0) {
+			return "Off";
+		}
+		return min == max ? max + "s" : min + "-" + max + "s";
+	}
+
+	private int pickDelayHandle(Rect track, int mouseX) {
+		SantoraConfig config = engine.config();
+		float t = sliderT(track, mouseX);
+		float tMin = config.delayMinMillis() / (float) SantoraConfig.DELAY_MAX_MILLIS;
+		float tMax = config.delayMaxMillis() / (float) SantoraConfig.DELAY_MAX_MILLIS;
+		if (t < tMin) {
+			return SLIDER_DELAY_MIN;
+		}
+		if (t > tMax) {
+			return SLIDER_DELAY_MAX;
+		}
+		return t - tMin <= tMax - t ? SLIDER_DELAY_MIN : SLIDER_DELAY_MAX;
+	}
+
+	private void clickSettings(int mouseX, int mouseY) {
+		SantoraConfig config = engine.config();
+
+		if (settingsSwitchRect(0).contains(mouseX, mouseY, 2)) {
+			config.setCrossfadeOn(!config.crossfadeOn());
+			return;
+		}
+		if (settingsSwitchRect(4).contains(mouseX, mouseY, 2)) {
+			config.setResumeOnLaunch(!config.resumeOnLaunch());
+			return;
+		}
+
+		if (settingsSliderRect(1).contains(mouseX, mouseY, 3)) {
+			activeSlider = SLIDER_CROSSFADE;
+		} else if (settingsSliderRect(2).contains(mouseX, mouseY, 3)) {
+			activeSlider = pickDelayHandle(settingsSliderRect(2), mouseX);
+		} else if (settingsSliderRect(3).contains(mouseX, mouseY, 3)) {
+			activeSlider = SLIDER_VOLUME;
+		} else {
+			return;
+		}
+		applySlider(activeSlider, mouseX);
+	}
+
+	private void applySlider(int slider, int mouseX) {
+		SantoraConfig config = engine.config();
+		switch (slider) {
+			case SLIDER_CROSSFADE -> config.setCrossfadeMillis(snap(
+					sliderT(settingsSliderRect(1), mouseX) * SantoraConfig.CROSSFADE_MAX_MILLIS, 500));
+			case SLIDER_DELAY_MIN -> config.setDelayMinMillis(snap(
+					sliderT(settingsSliderRect(2), mouseX) * SantoraConfig.DELAY_MAX_MILLIS, 5_000));
+			case SLIDER_DELAY_MAX -> config.setDelayMaxMillis(snap(
+					sliderT(settingsSliderRect(2), mouseX) * SantoraConfig.DELAY_MAX_MILLIS, 5_000));
+			case SLIDER_VOLUME -> engine.setVolume(
+					snap(sliderT(settingsSliderRect(3), mouseX) * 100, 5) / 100f);
+			default -> { }
+		}
+	}
+
+	private static int snap(float value, int step) {
+		return Math.round(value / step) * step;
 	}
 
 	// Song list
@@ -634,8 +867,11 @@ public final class SantoraUi {
 
 		int textX = deck.x() + 8 + artSize + 6;
 		int textMax = Math.max(40, deckShuffleRect().x() - 64 - textX);
-		canvas.text(track == null ? "Nothing playing" : canvas.ellipsize(track.title(), textMax),
-				textX, deck.y() + 11, Theme.TEXT_PRIMARY, false);
+		long waiting = engine.delayRemainingMillis();
+		String title = track != null ? canvas.ellipsize(track.title(), textMax)
+				: waiting >= 0 ? "Next track in " + (waiting + 999) / 1000 + "s"
+				: "Nothing playing";
+		canvas.text(title, textX, deck.y() + 11, Theme.TEXT_PRIMARY, false);
 		canvas.text(track == null ? "" : canvas.ellipsize(track.artist(), textMax),
 				textX, deck.y() + 22, Theme.TEXT_SECONDARY, false);
 
@@ -1040,12 +1276,22 @@ public final class SantoraUi {
 		openAlbumId = "";
 		gridScroll = 0;
 		trackScroll = 0;
+		settingsScroll = 0;
 	}
 
 	private boolean clickMain(int mouseX, int mouseY) {
 		Rect main = mainRect();
-		if (!main.contains(mouseX, mouseY) || engine.library().isEmpty()) {
-			return main.contains(mouseX, mouseY);
+		if (!main.contains(mouseX, mouseY)) {
+			return false;
+		}
+
+		if (view == View.SETTINGS) {
+			clickSettings(mouseX, mouseY);
+			return true;
+		}
+
+		if (engine.library().isEmpty()) {
+			return true;
 		}
 
 		if (view == View.QUEUE) {
@@ -1120,6 +1366,10 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseDragged(int mouseX, int mouseY, int button) {
+		if (button == 0 && activeSlider != SLIDER_NONE) {
+			applySlider(activeSlider, mouseX);
+			return true;
+		}
 		if (button != 0 || dragIndex < 0) {
 			return false;
 		}
@@ -1134,6 +1384,10 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseReleased(int mouseX, int mouseY, int button) {
+		if (button == 0 && activeSlider != SLIDER_NONE) {
+			activeSlider = SLIDER_NONE;
+			return true;
+		}
 		if (button != 0 || dragIndex < 0) {
 			return false;
 		}
@@ -1229,7 +1483,10 @@ public final class SantoraUi {
 		}
 		int step = (int) (-amount * 16);
 
-		if (view != View.QUEUE && openAlbum() == null) {
+		if (view == View.SETTINGS) {
+			int max = Math.max(0, settingsContentHeight() - main.h());
+			settingsScroll = clamp(settingsScroll + step, 0, max);
+		} else if (view != View.QUEUE && openAlbum() == null) {
 			int max = Math.max(0, gridContentHeight(gridTileCount(browseAlbums())) - main.h());
 			gridScroll = clamp(gridScroll + step, 0, max);
 		} else {
