@@ -1,6 +1,7 @@
 package dev.santora.core.model;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -41,6 +42,26 @@ public record MusicLibrary(
 
 	public Optional<Track> trackByPath(String soundPath) {
 		return tracks.stream().filter(t -> t.soundPath().equals(soundPath)).findFirst();
+	}
+
+	public List<Track> search(String query) {
+		String trimmed = query.trim().toLowerCase(Locale.ROOT);
+		if (trimmed.isEmpty()) {
+			return tracks;
+		}
+		String[] words = trimmed.split("\\s+");
+		return tracks.stream()
+				.filter(track -> {
+					String text = (track.title() + " " + track.artist() + " " + track.fileName())
+							.toLowerCase(Locale.ROOT);
+					for (String word : words) {
+						if (!text.contains(word)) {
+							return false;
+						}
+					}
+					return true;
+				})
+				.toList();
 	}
 
 	private Map<String, Track> byPath() {

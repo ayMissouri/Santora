@@ -32,6 +32,7 @@ public final class SantoraUi {
 	private final Map<String, Identifier> artCache = new HashMap<>();
 
 	private enum View {
+		SEARCH("Search"),
 		ALBUMS("Albums"),
 		ARTISTS("Artists"),
 		UPDATES("Updates"),
@@ -53,6 +54,11 @@ public final class SantoraUi {
 	private static int gridScroll;
 	private static int trackScroll;
 	private static int settingsScroll;
+	private static String searchQuery = "";
+
+	private List<Track> searchResults = List.of();
+	private String searchResultsQuery;
+	private MusicLibrary searchResultsLibrary;
 
 	private static final int DRAG_THRESHOLD = 4;
 	private static final int DRAG_EDGE = 14;
@@ -62,6 +68,7 @@ public final class SantoraUi {
 	private static final int MENU_ITEM_HEIGHT = 13;
 	private static final int MENU_PAD = 3;
 	private static final int NAME_INPUT_MAX = 24;
+	private static final int SEARCH_INPUT_MAX = 28;
 
 	private int dragIndex = -1;
 	private int dragArmY;
@@ -195,7 +202,18 @@ public final class SantoraUi {
 	}
 
 	private int listTop() {
-		return view == View.QUEUE ? mainRect().y() + 24 : headerArtRect().bottom() + 8;
+		if (view == View.QUEUE) {
+			return mainRect().y() + 24;
+		}
+		if (view == View.SEARCH) {
+			return searchFieldRect().bottom() + 5;
+		}
+		return headerArtRect().bottom() + 8;
+	}
+
+	private Rect searchFieldRect() {
+		Rect main = mainRect();
+		return new Rect(main.x() + Theme.PADDING, main.y() + 6, main.w() - Theme.PADDING * 2, 15);
 	}
 
 	private Rect listRect() {
@@ -340,7 +358,7 @@ public final class SantoraUi {
 			case ARTISTS -> library.artistAlbums();
 			case UPDATES -> library.updateAlbums();
 			case PLAYLISTS -> engine.playlistAlbums();
-			case QUEUE, SETTINGS -> List.of();
+			case SEARCH, QUEUE, SETTINGS -> List.of();
 		};
 	}
 
@@ -348,7 +366,20 @@ public final class SantoraUi {
 		return albums.size() + (view == View.PLAYLISTS ? 1 : 0);
 	}
 
+	private List<Track> searchTracks() {
+		MusicLibrary library = engine.library();
+		if (!searchQuery.equals(searchResultsQuery) || library != searchResultsLibrary) {
+			searchResults = library.search(searchQuery);
+			searchResultsQuery = searchQuery;
+			searchResultsLibrary = library;
+		}
+		return searchResults;
+	}
+
 	private List<Track> visibleTracks() {
+		if (view == View.SEARCH) {
+			return searchTracks();
+		}
 		if (view == View.QUEUE) {
 			List<Track> rows = new ArrayList<>();
 			Track current = engine.currentTrack();
@@ -376,7 +407,10 @@ public final class SantoraUi {
 			return;
 		}
 
-		if (view == View.QUEUE) {
+		if (view == View.SEARCH) {
+			renderSearchField(canvas);
+			renderTrackList(canvas, mouseX, mouseY);
+		} else if (view == View.QUEUE) {
 			renderQueueHeader(canvas, main);
 			renderTrackList(canvas, mouseX, mouseY);
 		} else if (openAlbum() == null) {
@@ -469,6 +503,27 @@ public final class SantoraUi {
 
 		drawButton(canvas, mouseX, mouseY, playButtonRect(), "Play", true);
 		drawButton(canvas, mouseX, mouseY, shuffleButtonRect(), "Shuffle", false);
+	}
+
+	private void renderSearchField(SantoraCanvas canvas) {
+		Rect field = searchFieldRect();
+		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), 0xFF0C0F17);
+		canvas.outline(field.x(), field.y(), field.w(), field.h(), Theme.DIVIDER);
+
+		int textY = field.y() + (field.h() - canvas.lineHeight()) / 2 + 1;
+		boolean caret = System.currentTimeMillis() / 400 % 2 == 0;
+		canvas.text(searchQuery + (caret ? "_" : ""), field.x() + 4, textY,
+				Theme.TEXT_PRIMARY, false);
+		if (searchQuery.isEmpty()) {
+			canvas.text("Search songs...", field.x() + 4 + canvas.textWidth("_") + 2, textY,
+					Theme.TEXT_MUTED, false);
+			return;
+		}
+
+		int found = searchTracks().size();
+		String count = found == 1 ? "1 match" : found + " matches";
+		canvas.text(count, field.right() - 4 - canvas.textWidth(count), textY,
+				Theme.TEXT_MUTED, false);
 	}
 
 	private void renderQueueHeader(SantoraCanvas canvas, Rect main) {
@@ -731,7 +786,7 @@ public final class SantoraUi {
 				} else if (reorderable && (hover || dragged)) {
 					drawGrip(canvas, list.x() + Theme.PADDING, rowY + rowH / 2,
 							dragged ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
-				} else {
+				} else if (view != View.SEARCH) {
 					canvas.text(String.valueOf(index), list.x() + Theme.PADDING, textY,
 							Theme.TEXT_MUTED, false);
 				}
@@ -761,8 +816,10 @@ public final class SantoraUi {
 		}
 
 		if (tracks.isEmpty()) {
-			canvas.textCentered(view == View.QUEUE ? "Queue is empty" : "No tracks",
-					list.x() + list.w() / 2, list.y() + 20, Theme.TEXT_MUTED);
+			String message = view == View.QUEUE ? "Queue is empty"
+					: view == View.SEARCH ? "No matches"
+					: "No tracks";
+			canvas.textCentered(message, list.x() + list.w() / 2, list.y() + 20, Theme.TEXT_MUTED);
 		}
 		canvas.popScissor();
 	}
@@ -1051,7 +1108,7 @@ public final class SantoraUi {
 			return inWindow;
 		}
 
-		boolean listVisible = view == View.QUEUE || openAlbum() != null;
+		boolean listVisible = view == View.QUEUE || view == View.SEARCH || openAlbum() != null;
 		if (listVisible && listRect().contains(mouseX, mouseY)) {
 			List<Track> tracks = visibleTracks();
 			int row = (mouseY - listRect().y() + trackScroll) / Theme.ROW_HEIGHT;
@@ -1294,7 +1351,7 @@ public final class SantoraUi {
 			return true;
 		}
 
-		if (view == View.QUEUE) {
+		if (view == View.SEARCH || view == View.QUEUE) {
 			clickTrackRows(mouseX, mouseY);
 			return true;
 		}
@@ -1344,10 +1401,11 @@ public final class SantoraUi {
 			if (mouseY >= rowY && mouseY < rowY + Theme.ROW_HEIGHT) {
 				int upIndex = i - queueRowOffset();
 				if (view == View.QUEUE && upIndex >= 0) {
-					// Arm a drag; the click action runs on release if no drag happened.
 					dragIndex = upIndex;
 					dragArmY = mouseY;
 					dragging = false;
+				} else if (view == View.SEARCH) {
+					engine.playTrack(tracks.get(i));
 				} else if (view == View.QUEUE || open == null) {
 					engine.queue().setCurrent(tracks.get(i));
 				} else {
@@ -1359,9 +1417,7 @@ public final class SantoraUi {
 		}
 	}
 
-	// Queue drag-to-reorder
 	private int queueRowOffset() {
-		// Row 0 of the queue view is the playing track, when there is one.
 		return engine.currentTrack() != null ? 1 : 0;
 	}
 
@@ -1408,7 +1464,6 @@ public final class SantoraUi {
 		int queuedCount = engine.queue().userQueue().size();
 		int upcomingCount = visibleTracks().size() - base;
 		if (upcomingCount <= 0) {
-			// Playback drained the list mid-drag.
 			cancelDrag();
 			return;
 		}
@@ -1418,8 +1473,6 @@ public final class SantoraUi {
 		int row = (mouseY - list.y() + trackScroll) / Theme.ROW_HEIGHT;
 		int target = clamp(row - base, 0, upcomingCount - 1);
 
-		// A drag stays inside the segment it started in: the user queue
-		// plays before the context tracks, so rows cannot cross over.
 		if (dragIndex < queuedCount) {
 			target = Math.min(target, queuedCount - 1);
 			if (target != dragIndex) {
@@ -1486,7 +1539,7 @@ public final class SantoraUi {
 		if (view == View.SETTINGS) {
 			int max = Math.max(0, settingsContentHeight() - main.h());
 			settingsScroll = clamp(settingsScroll + step, 0, max);
-		} else if (view != View.QUEUE && openAlbum() == null) {
+		} else if (view != View.QUEUE && view != View.SEARCH && openAlbum() == null) {
 			int max = Math.max(0, gridContentHeight(gridTileCount(browseAlbums())) - main.h());
 			gridScroll = clamp(gridScroll + step, 0, max);
 		} else {
@@ -1517,6 +1570,20 @@ public final class SantoraUi {
 			return true;
 		}
 
+		if (view == View.SEARCH) {
+			if (keyCode == 259 && !searchQuery.isEmpty()) { // backspace
+				searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
+				trackScroll = 0;
+				return true;
+			}
+			if (keyCode == 256 && !searchQuery.isEmpty()) { // escape clears first
+				searchQuery = "";
+				trackScroll = 0;
+				return true;
+			}
+			return false;
+		}
+
 		switch (keyCode) {
 			case 32 -> { // space
 				engine.togglePlayPause();
@@ -1541,13 +1608,20 @@ public final class SantoraUi {
 	}
 
 	public boolean charTyped(CharacterEvent event) {
-		if (!naming) {
-			return false;
+		if (naming) {
+			if (event.isAllowedChatCharacter() && nameInput.length() < NAME_INPUT_MAX) {
+				nameInput.append(event.codepointAsString());
+			}
+			return true;
 		}
-		if (event.isAllowedChatCharacter() && nameInput.length() < NAME_INPUT_MAX) {
-			nameInput.append(event.codepointAsString());
+		if (view == View.SEARCH && menuItems == null) {
+			if (event.isAllowedChatCharacter() && searchQuery.length() < SEARCH_INPUT_MAX) {
+				searchQuery += event.codepointAsString();
+				trackScroll = 0;
+			}
+			return true;
 		}
-		return true;
+		return false;
 	}
 
 	public void onClose() {
