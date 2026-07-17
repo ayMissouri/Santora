@@ -3,7 +3,7 @@
 	"id": "santora",
 	"version": "${version}",
 	"name": "Santora",
-	"description": "An in-game music player for Minecraft's own soundtrack. Browse every vanilla track as albums, with play/pause/skip, shuffle, a queue, and crossfade. Client-side only; ships no audio.",
+	"description": "An in-game music player for Minecraft's own soundtrack. Browse every track as albums, with play/pause/skip, shuffle, a queue, and crossfade.",
 	"authors": ["amissouri"],
 	"contact": {},
 	"license": "MIT",

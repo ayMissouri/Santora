@@ -65,9 +65,7 @@ public final class NowPlayingOverlay {
 		int artX = x + 6;
 		int artY = y + 6;
 		if (track != null) {
-			int base = Theme.artColorFor(track.soundPath());
-			canvas.fillGradient(artX, artY, artX + ART_SIZE, artY + ART_SIZE,
-					base, Theme.blend(base, 0xFF000000, 0.45f));
+			AlbumArt.drawTrack(canvas, track, artX, artY, ART_SIZE);
 			drawStateIcon(canvas, engine, artX, artY);
 		} else {
 			canvas.fill(artX, artY, artX + ART_SIZE, artY + ART_SIZE,
@@ -89,12 +87,11 @@ public final class NowPlayingOverlay {
 	}
 
 	private static void drawStateIcon(SantoraCanvas canvas, MusicEngine engine, int artX, int artY) {
-		int color = 0xE6FFFFFF;
 		if (engine.isPaused()) {
 			int cx = artX + ART_SIZE / 2;
 			int cy = artY + ART_SIZE / 2;
-			canvas.fill(cx - 4, cy - 4, cx - 1, cy + 5, color);
-			canvas.fill(cx + 1, cy - 4, cx + 4, cy + 5, color);
+			iconBar(canvas, cx - 4, cy - 4, cx - 1, cy + 5);
+			iconBar(canvas, cx + 1, cy - 4, cx + 4, cy + 5);
 			return;
 		}
 		long t = engine.elapsedMillis() / 120;
@@ -103,8 +100,13 @@ public final class NowPlayingOverlay {
 		for (int i = 0; i < 3; i++) {
 			int phase = (int) ((t + i * 2) % 6);
 			int h = 2 + (phase < 3 ? phase : 6 - phase);
-			canvas.fill(x + i * 3, bottom - h, x + i * 3 + 2, bottom, color);
+			iconBar(canvas, x + i * 3, bottom - h, x + i * 3 + 2, bottom);
 		}
+	}
+
+	private static void iconBar(SantoraCanvas canvas, int x1, int y1, int x2, int y2) {
+		canvas.fill(x1 + 1, y1 + 1, x2 + 1, y2 + 1, 0x80000000);
+		canvas.fill(x1, y1, x2, y2, 0xF2FFFFFF);
 	}
 
 	private static void renderProgress(SantoraCanvas canvas, MusicEngine engine, Track track,

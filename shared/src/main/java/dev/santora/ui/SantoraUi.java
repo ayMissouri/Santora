@@ -10,18 +10,10 @@ import dev.santora.core.model.Playlists;
 import dev.santora.core.model.Track;
 import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.Resource;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalDouble;
 
 public final class SantoraUi {
@@ -30,13 +22,6 @@ public final class SantoraUi {
 	private static final int MAX_HEIGHT = 260;
 
 	private final MusicEngine engine = MusicEngine.get();
-
-	private record ArtRef(Identifier texture, float u0, float u1, float v0, float v1) {
-	}
-
-	private static final ArtRef ABSENT = new ArtRef(null, 0, 0, 0, 0);
-
-	private final Map<String, ArtRef> artCache = new HashMap<>();
 
 	private enum View {
 		SEARCH("Search"),
@@ -1134,12 +1119,7 @@ public final class SantoraUi {
 			return;
 		}
 
-		ArtRef art = artTexture(album);
-		if (art != null) {
-			int size = Math.min(w, h);
-			canvas.fill(x, y, x + w, y + h, Theme.INPUT_BG);
-			canvas.blit(art.texture(), x + (w - size) / 2, y + (h - size) / 2, size, size,
-					art.u0(), art.u1(), art.v0(), art.v1());
+		if (AlbumArt.draw(canvas, album.artKey(), x, y, w, h)) {
 			return;
 		}
 
@@ -1157,43 +1137,6 @@ public final class SantoraUi {
 		}
 		String initials = album.title().isEmpty() ? "?" : album.title().substring(0, 1).toUpperCase();
 		canvas.textCentered(initials, x + w / 2, y + h / 2 - canvas.lineHeight() / 2, 0x66FFFFFF);
-	}
-
-	private ArtRef artTexture(Album album) {
-		if (album.artKey() == null) {
-			return null;
-		}
-		ArtRef cached = artCache.computeIfAbsent(album.id(), id -> {
-			Identifier tex = Identifier.tryParse(album.artKey());
-			if (tex == null) {
-				return ABSENT;
-			}
-			Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(tex);
-			if (resource.isEmpty()) {
-				return ABSENT;
-			}
-			float aspect = pngAspect(resource.get());
-			float uSpan = aspect > 1 ? 1f / aspect : 1f;
-			float vSpan = aspect < 1 ? aspect : 1f;
-			float u0 = (1f - uSpan) / 2f;
-			float v0 = (1f - vSpan) / 2f;
-			return new ArtRef(tex, u0, u0 + uSpan, v0, v0 + vSpan);
-		});
-		return cached == ABSENT ? null : cached;
-	}
-
-	private static float pngAspect(Resource resource) {
-		try (InputStream in = resource.open()) {
-			byte[] head = in.readNBytes(24);
-			if (head.length < 24 || head[12] != 'I' || head[13] != 'H' || head[14] != 'D' || head[15] != 'R') {
-				return 1f;
-			}
-			int wPx = ((head[16] & 0xFF) << 24) | ((head[17] & 0xFF) << 16) | ((head[18] & 0xFF) << 8) | (head[19] & 0xFF);
-			int hPx = ((head[20] & 0xFF) << 24) | ((head[21] & 0xFF) << 16) | ((head[22] & 0xFF) << 8) | (head[23] & 0xFF);
-			return wPx > 0 && hPx > 0 ? (float) wPx / hPx : 1f;
-		} catch (IOException e) {
-			return 1f;
-		}
 	}
 
 	private MusicContext contextOf(Album album) {
@@ -1217,9 +1160,7 @@ public final class SantoraUi {
 		int artSize = 26;
 		int artY = deck.y() + Theme.PROGRESS_STRIP_HEIGHT + 7;
 		if (track != null) {
-			int base = Theme.artColorFor(track.soundPath());
-			canvas.fillGradient(deck.x() + 8, artY, deck.x() + 8 + artSize, artY + artSize,
-					base, Theme.blend(base, 0xFF000000, 0.45f));
+			AlbumArt.drawTrack(canvas, track, deck.x() + 8, artY, artSize);
 		} else {
 			canvas.fill(deck.x() + 8, artY, deck.x() + 8 + artSize, artY + artSize, Theme.EMPTY_ART);
 		}

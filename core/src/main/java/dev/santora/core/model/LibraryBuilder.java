@@ -88,8 +88,7 @@ public final class LibraryBuilder {
 					? plural(list.size())
 					: update.versionLabel() + " · " + plural(list.size());
 			albums.add(new Album("update:" + update.id(), update.displayName(), subtitle,
-					AlbumKind.UPDATE, list,
-					"santora:textures/album/update/" + update.id() + ".png"));
+					AlbumKind.UPDATE, list, update.artKey()));
 		}
 		return albums;
 	}

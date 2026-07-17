@@ -92,6 +92,10 @@ public enum MusicUpdate {
 		return versionLabel;
 	}
 
+	public String artKey() {
+		return "santora:textures/album/update/" + id + ".png";
+	}
+
 	public Set<String> fileNames() {
 		return fileNames;
 	}
