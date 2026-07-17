@@ -176,6 +176,15 @@ public final class PlayQueue {
 		userQueue.add(to, userQueue.remove(from));
 	}
 
+	public void moveUpcoming(int from, int to) {
+		int base = cursor + 1;
+		int size = order.size() - base;
+		if (from < 0 || from >= size || to < 0 || to >= size || from == to) {
+			return;
+		}
+		order.add(base + to, order.remove(base + from));
+	}
+
 	public boolean shuffle() {
 		return shuffle;
 	}

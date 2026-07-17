@@ -35,6 +35,22 @@ public abstract class SantoraScreenBase extends Screen {
 	}
 
 	@Override
+	public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+		if (ui.mouseDragged((int) event.x(), (int) event.y(), event.button())) {
+			return true;
+		}
+		return super.mouseDragged(event, dragX, dragY);
+	}
+
+	@Override
+	public boolean mouseReleased(MouseButtonEvent event) {
+		if (ui.mouseReleased((int) event.x(), (int) event.y(), event.button())) {
+			return true;
+		}
+		return super.mouseReleased(event);
+	}
+
+	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
 		if (ui.mouseScrolled((int) mouseX, (int) mouseY, scrollY)) {
 			return true;

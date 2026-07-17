@@ -48,6 +48,14 @@ public final class SantoraUi {
 	private int gridScroll;
 	private int trackScroll;
 
+	private static final int DRAG_THRESHOLD = 4;
+	private static final int DRAG_EDGE = 14;
+	private static final int DRAG_SCROLL_STEP = 3;
+
+	private int dragIndex = -1;
+	private int dragArmY;
+	private boolean dragging;
+
 	private int winX;
 	private int winY;
 	private int winW;
@@ -398,9 +406,15 @@ public final class SantoraUi {
 
 	// Song list
 	private void renderTrackList(SantoraCanvas canvas, int mouseX, int mouseY) {
+		if (dragging) {
+			tickDragScroll(mouseY);
+		}
+
 		Rect list = listRect();
 		List<Track> tracks = visibleTracks();
 		Track playing = engine.currentTrack();
+
+		int queueBase = queueRowOffset();
 
 		canvas.pushScissor(list.x(), list.y(), list.w(), list.h());
 		int rowY = list.y() - trackScroll;
@@ -412,8 +426,13 @@ public final class SantoraUi {
 				boolean isPlaying = playing != null && playing.soundPath().equals(track.soundPath());
 				boolean hover = list.contains(mouseX, mouseY)
 						&& mouseY >= rowY && mouseY < rowY + rowH;
+				boolean reorderable = view == View.QUEUE && index - 1 >= queueBase;
+				boolean dragged = dragging && reorderable && index - 1 - queueBase == dragIndex;
 
-				if (hover) {
+				if (dragged) {
+					canvas.fill(list.x(), rowY, list.right(), rowY + rowH, Theme.ROW_SELECTED);
+					canvas.fill(list.x(), rowY, list.x() + 2, rowY + rowH, Theme.ACCENT);
+				} else if (hover) {
 					canvas.fill(list.x(), rowY, list.right(), rowY + rowH, Theme.ROW_HOVER);
 				}
 
@@ -421,6 +440,9 @@ public final class SantoraUi {
 
 				if (isPlaying) {
 					drawEqBars(canvas, list.x() + Theme.PADDING, rowY + rowH / 2 + 4, Theme.ACCENT);
+				} else if (reorderable && (hover || dragged)) {
+					drawGrip(canvas, list.x() + Theme.PADDING, rowY + rowH / 2,
+							dragged ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
 				} else {
 					canvas.text(String.valueOf(index), list.x() + Theme.PADDING, textY,
 							Theme.TEXT_MUTED, false);
@@ -451,6 +473,12 @@ public final class SantoraUi {
 					list.x() + list.w() / 2, list.y() + 20, Theme.TEXT_MUTED);
 		}
 		canvas.popScissor();
+	}
+
+	private void drawGrip(SantoraCanvas canvas, int x, int cy, int color) {
+		for (int i = -1; i <= 1; i++) {
+			canvas.fill(x, cy + i * 3 - 1, x + 9, cy + i * 3, color);
+		}
 	}
 
 	private void drawEqBars(SantoraCanvas canvas, int x, int bottomY, int color) {
@@ -673,6 +701,7 @@ public final class SantoraUi {
 	}
 
 	private void selectView(View next) {
+		cancelDrag();
 		if (next == View.QUEUE) {
 			if (view != View.QUEUE) {
 				queueReturnView = view;
@@ -738,7 +767,13 @@ public final class SantoraUi {
 		int rowY = list.y() - trackScroll;
 		for (int i = 0; i < tracks.size(); i++) {
 			if (mouseY >= rowY && mouseY < rowY + Theme.ROW_HEIGHT) {
-				if (view == View.QUEUE || open == null) {
+				int upIndex = i - queueRowOffset();
+				if (view == View.QUEUE && upIndex >= 0) {
+					// Arm a drag; the click action runs on release if no drag happened.
+					dragIndex = upIndex;
+					dragArmY = mouseY;
+					dragging = false;
+				} else if (view == View.QUEUE || open == null) {
 					engine.queue().setCurrent(tracks.get(i));
 				} else {
 					engine.playAlbum(open, i);
@@ -747,6 +782,92 @@ public final class SantoraUi {
 			}
 			rowY += Theme.ROW_HEIGHT;
 		}
+	}
+
+	// Queue drag-to-reorder
+	private int queueRowOffset() {
+		// Row 0 of the queue view is the playing track, when there is one.
+		return engine.currentTrack() != null ? 1 : 0;
+	}
+
+	public boolean mouseDragged(int mouseX, int mouseY, int button) {
+		if (button != 0 || dragIndex < 0) {
+			return false;
+		}
+		if (!dragging) {
+			if (Math.abs(mouseY - dragArmY) < DRAG_THRESHOLD) {
+				return true;
+			}
+			dragging = true;
+		}
+		moveDraggedTo(mouseY);
+		return true;
+	}
+
+	public boolean mouseReleased(int mouseX, int mouseY, int button) {
+		if (button != 0 || dragIndex < 0) {
+			return false;
+		}
+		boolean wasClick = !dragging;
+		int row = queueRowOffset() + dragIndex;
+		cancelDrag();
+		if (wasClick) {
+			List<Track> tracks = visibleTracks();
+			if (row < tracks.size()) {
+				engine.queue().setCurrent(tracks.get(row));
+			}
+		}
+		return true;
+	}
+
+	private void moveDraggedTo(int mouseY) {
+		int base = queueRowOffset();
+		int queuedCount = engine.queue().userQueue().size();
+		int upcomingCount = visibleTracks().size() - base;
+		if (upcomingCount <= 0) {
+			// Playback drained the list mid-drag.
+			cancelDrag();
+			return;
+		}
+		dragIndex = clamp(dragIndex, 0, upcomingCount - 1);
+
+		Rect list = listRect();
+		int row = (mouseY - list.y() + trackScroll) / Theme.ROW_HEIGHT;
+		int target = clamp(row - base, 0, upcomingCount - 1);
+
+		// A drag stays inside the segment it started in: the user queue
+		// plays before the context tracks, so rows cannot cross over.
+		if (dragIndex < queuedCount) {
+			target = Math.min(target, queuedCount - 1);
+			if (target != dragIndex) {
+				engine.queue().moveInQueue(dragIndex, target);
+				dragIndex = target;
+			}
+		} else {
+			target = Math.max(target, queuedCount);
+			if (target != dragIndex) {
+				engine.queue().moveUpcoming(dragIndex - queuedCount, target - queuedCount);
+				dragIndex = target;
+			}
+		}
+	}
+
+	private void tickDragScroll(int mouseY) {
+		Rect list = listRect();
+		int max = Math.max(0, visibleTracks().size() * Theme.ROW_HEIGHT - list.h());
+		if (mouseY < list.y() + DRAG_EDGE) {
+			trackScroll = clamp(trackScroll - DRAG_SCROLL_STEP, 0, max);
+		} else if (mouseY > list.bottom() - DRAG_EDGE) {
+			trackScroll = clamp(trackScroll + DRAG_SCROLL_STEP, 0, max);
+		} else {
+			return;
+		}
+		moveDraggedTo(mouseY);
+	}
+
+	private void cancelDrag() {
+		dragIndex = -1;
+		dragging = false;
 	}
 
 	private boolean clickDeck(int mouseX, int mouseY) {
@@ -792,6 +913,7 @@ public final class SantoraUi {
 				return true;
 			}
 			case 81 -> { // Q
+				cancelDrag();
 				if (view == View.QUEUE) {
 					view = queueReturnView;
 				} else {

@@ -19,7 +19,7 @@ Client-side only. No server needed, no audio shipped.
 
 1. Install **Fabric Loader** for your Minecraft version.
 2. Install **Fabric API**
-3. Drop the matching `santora-mc<version>-1.0.0.jar` into `.minecraft/mods/`.
+3. Drop the matching `santora-mc<version>-1.0.1.jar` into `.minecraft/mods/`.
 4. Launch. Press **M** to open the player.
 
 ## Using it
@@ -29,4 +29,5 @@ Client-side only. No server needed, no audio shipped.
 | **M** | Open / close |
 | **Space** | Play / pause |
 | **Q** | Toggle queue view |
+| **Drag** | Reorder queued tracks in the queue view |
 | **Esc** | Close |

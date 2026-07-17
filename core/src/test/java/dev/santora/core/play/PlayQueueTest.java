@@ -159,6 +159,31 @@ class PlayQueueTest {
 	}
 
 	@Test
+	void upcomingReorderChangesContextPlayOrder() {
+		PlayQueue q = seeded();
+		q.setContext("album", ALBUM, -1);
+		q.next();
+
+		q.moveUpcoming(1, 0);
+		assertEquals(List.of("c", "b", "d"),
+				q.upcoming(10).stream().map(Track::title).toList());
+		assertEquals("c", q.next().orElseThrow().title());
+		assertEquals("b", q.next().orElseThrow().title());
+		assertEquals("d", q.next().orElseThrow().title());
+	}
+
+	@Test
+	void upcomingReorderIgnoresOutOfRangeRatherThanThrowing() {
+		PlayQueue q = seeded();
+		q.setContext("album", ALBUM, -1);
+		q.next();
+		q.moveUpcoming(-1, 0);
+		q.moveUpcoming(0, 99);
+		q.moveUpcoming(99, 0);
+		assertEquals("b", q.next().orElseThrow().title());
+	}
+
+	@Test
 	void emptyContextIsSafe() {
 		PlayQueue q = seeded();
 		q.setContext("empty", List.of(), -1);
