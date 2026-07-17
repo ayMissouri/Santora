@@ -360,6 +360,12 @@ public final class MusicEngine {
 	}
 
 	// Pausing and resuming
+	public void reassertPause() {
+		if (paused && current != null) {
+			setChannelPaused(current, true);
+		}
+	}
+
 	private void setChannelPaused(Voice voice, boolean pause) {
 		SoundEngine engine = ((SoundManagerAccessor) Minecraft.getInstance().getSoundManager())
 				.santora$soundEngine();

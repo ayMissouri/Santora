@@ -6,6 +6,7 @@
 		"MusicManagerMixin",
 		"MusicManagerAccessor",
 		"SoundEngineAccessor",
+		"SoundEngineMixin",
 		"SoundManagerAccessor",
 		"WeighedSoundEventsAccessor"
 	],
