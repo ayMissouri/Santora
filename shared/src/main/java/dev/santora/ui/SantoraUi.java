@@ -41,12 +41,12 @@ public final class SantoraUi {
 		}
 	}
 
-	private View view = View.ALBUMS;
-	private View queueReturnView = View.ALBUMS;
-	private String openAlbumId = "";
+	private static View view = View.ALBUMS;
+	private static View queueReturnView = View.ALBUMS;
+	private static String openAlbumId = "";
 
-	private int gridScroll;
-	private int trackScroll;
+	private static int gridScroll;
+	private static int trackScroll;
 
 	private static final int DRAG_THRESHOLD = 4;
 	private static final int DRAG_EDGE = 14;
@@ -348,6 +348,8 @@ public final class SantoraUi {
 			return;
 		}
 
+		gridScroll = clamp(gridScroll, 0, Math.max(0, gridContentHeight(albums.size()) - main.h()));
+
 		canvas.pushScissor(main.x(), main.y(), main.w(), main.h());
 		for (int i = 0; i < albums.size(); i++) {
 			Rect tile = tileRect(i);
@@ -413,6 +415,8 @@ public final class SantoraUi {
 		Rect list = listRect();
 		List<Track> tracks = visibleTracks();
 		Track playing = engine.currentTrack();
+
+		trackScroll = clamp(trackScroll, 0, Math.max(0, tracks.size() * Theme.ROW_HEIGHT - list.h()));
 
 		int queueBase = queueRowOffset();
 
