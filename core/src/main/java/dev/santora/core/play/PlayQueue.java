@@ -223,6 +223,10 @@ public final class PlayQueue {
 		this.repeat = repeat;
 	}
 
+	public int upcomingCount() {
+		return userQueue.size() + Math.max(0, order.size() - cursor - 1);
+	}
+
 	public List<Track> upcoming(int limit) {
 		List<Track> out = new ArrayList<>(userQueue);
 		for (int i = cursor + 1; i < order.size() && out.size() < limit; i++) {

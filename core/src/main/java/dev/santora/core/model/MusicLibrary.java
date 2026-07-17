@@ -10,7 +10,7 @@ public record MusicLibrary(
 		List<Track> tracks,
 		List<Album> contextAlbums,
 		List<Album> artistAlbums,
-		List<Album> playlistAlbums
+		List<Album> updateAlbums
 ) {
 	public static final MusicLibrary EMPTY = new MusicLibrary(List.of(), List.of(), List.of(), List.of());
 
@@ -18,7 +18,7 @@ public record MusicLibrary(
 		tracks = List.copyOf(tracks);
 		contextAlbums = List.copyOf(contextAlbums);
 		artistAlbums = List.copyOf(artistAlbums);
-		playlistAlbums = List.copyOf(playlistAlbums);
+		updateAlbums = List.copyOf(updateAlbums);
 	}
 
 	public int size() {
@@ -30,7 +30,7 @@ public record MusicLibrary(
 	}
 
 	public List<Album> allAlbums() {
-		return java.util.stream.Stream.of(contextAlbums, artistAlbums, playlistAlbums)
+		return java.util.stream.Stream.of(contextAlbums, artistAlbums, updateAlbums)
 				.flatMap(List::stream)
 				.toList();
 	}

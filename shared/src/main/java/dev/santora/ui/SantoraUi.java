@@ -31,7 +31,7 @@ public final class SantoraUi {
 	private enum View {
 		ALBUMS("Albums"),
 		ARTISTS("Artists"),
-		BIOMES("Biomes"),
+		UPDATES("Updates"),
 		QUEUE("Queue");
 
 		final String label;
@@ -298,7 +298,7 @@ public final class SantoraUi {
 		return switch (view) {
 			case ALBUMS -> library.contextAlbums();
 			case ARTISTS -> library.artistAlbums();
-			case BIOMES -> library.playlistAlbums();
+			case UPDATES -> library.updateAlbums();
 			case QUEUE -> List.of();
 		};
 	}
@@ -401,7 +401,7 @@ public final class SantoraUi {
 
 	private void renderQueueHeader(SantoraCanvas canvas, Rect main) {
 		canvas.text("Queue", main.x() + Theme.PADDING, main.y() + 7, Theme.TEXT_PRIMARY, false);
-		String queued = engine.queue().userQueue().size() + " queued";
+		String queued = engine.queue().upcomingCount() + " up next";
 		canvas.text(queued, main.right() - Theme.PADDING - canvas.textWidth(queued),
 				main.y() + 7, Theme.TEXT_SECONDARY, false);
 	}

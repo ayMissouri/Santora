@@ -57,6 +57,22 @@ class PlayQueueTest {
 	}
 
 	@Test
+	void upcomingCountIncludesContextTracksNotJustTheUserQueue() {
+		PlayQueue q = seeded();
+		q.setContext("album", ALBUM, -1);
+		q.next();
+		assertEquals(3, q.upcomingCount(), "playing an album leaves the rest of it up next");
+		assertEquals(q.upcoming(64).size(), q.upcomingCount());
+
+		q.enqueue(track("zz"));
+		assertEquals(4, q.upcomingCount());
+
+		while (q.next().isPresent()) {
+		}
+		assertEquals(0, q.upcomingCount());
+	}
+
+	@Test
 	void repeatOneReplaysWithoutDrainingTheUserQueue() {
 		PlayQueue q = seeded();
 		q.setContext("album", ALBUM, -1);

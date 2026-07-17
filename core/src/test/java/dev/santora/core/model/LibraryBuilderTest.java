@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LibraryBuilderTest {
@@ -83,10 +82,16 @@ class LibraryBuilderTest {
 	}
 
 	@Test
-	void toleratesEventWithNoSounds() {
-		MusicLibrary lib = build(List.of(new RawSound("minecraft:music.game", "minecraft:music/game/sweden")));
-		assertTrue(lib.playlistAlbums().stream().noneMatch(a -> a.id().contains("warped_forest")));
-		assertFalse(lib.isEmpty());
+	void groupsTracksByUpdateInReleaseOrder() {
+		MusicLibrary lib = build(List.of(
+				new RawSound("minecraft:music.nether.crimson_forest", "minecraft:music/game/nether/crimson_forest/chrysopoeia"),
+				new RawSound("minecraft:music.game", "minecraft:music/game/sweden"),
+				new RawSound("minecraft:music.under_water", "minecraft:music/game/water/axolotl")));
+
+		List<String> titles = lib.updateAlbums().stream().map(Album::title).toList();
+		assertEquals(List.of("Classic", "Update Aquatic", "Nether Update"), titles,
+				"the grid should read as a timeline, not alphabetically");
+		assertEquals("1.16 · 1 track", lib.updateAlbums().get(2).subtitle());
 	}
 
 	@Test
@@ -102,17 +107,45 @@ class LibraryBuilderTest {
 	}
 
 	@Test
-	void excludesMusicDiscsFromPlaylistsSincetheyHaveAContextAlbum() {
-		MusicLibrary lib = build(List.of(new RawSound("minecraft:music_disc.pigstep", "minecraft:records/pigstep")));
-		assertTrue(lib.playlistAlbums().isEmpty(), "22 single-track disc playlists would spam the sidebar");
-		assertTrue(lib.contextAlbums().stream().anyMatch(a -> a.title().equals("Music Discs")));
+	void discsBelongToTheUpdateThatAddedThem() {
+		MusicLibrary lib = build(List.of(
+				new RawSound("minecraft:music_disc.pigstep", "minecraft:records/pigstep"),
+				new RawSound("minecraft:music.nether.crimson_forest", "minecraft:music/game/nether/crimson_forest/chrysopoeia")));
+
+		Album nether = lib.updateAlbums().stream()
+				.filter(a -> a.id().equals("update:nether")).findFirst().orElseThrow();
+		assertEquals(2, nether.trackCount(), "Pigstep shipped with the Nether Update, same as Chrysopoeia");
 	}
 
 	@Test
-	void namesPlaylistsFromEventIds() {
-		assertEquals("Cherry Grove", LibraryBuilder.playlistName("minecraft:music.overworld.cherry_grove"));
-		assertEquals("Crimson Forest", LibraryBuilder.playlistName("minecraft:music.nether.crimson_forest"));
-		assertEquals("Creative", LibraryBuilder.playlistName("minecraft:music.creative"));
+	void unknownAndModdedTracksLandInOtherInsteadOfVanishing() {
+		MusicLibrary lib = build(List.of(
+				new RawSound("somemod:music.custom", "somemod:tunes/whatever"),
+				new RawSound("minecraft:music.game", "minecraft:music/game/some_future_song")));
+
+		Album other = lib.updateAlbums().stream()
+				.filter(a -> a.id().equals("update:other")).findFirst().orElseThrow();
+		assertEquals(2, other.trackCount());
+		assertEquals(other, lib.updateAlbums().get(lib.updateAlbums().size() - 1), "Other always sorts last");
+	}
+
+	@Test
+	void updateLookupIgnoresTheFolderSinceMojangMovesFilesAround() {
+		assertEquals(MusicUpdate.NETHER, MusicUpdate.of("minecraft:music/game/nether/crimson_forest/chrysopoeia"));
+		assertEquals(MusicUpdate.NETHER, MusicUpdate.of("minecraft:music/game/chrysopoeia"));
+		assertEquals(MusicUpdate.OTHER, MusicUpdate.of("somemod:music/game/sweden"),
+				"a modded copy of a vanilla file name must not join the vanilla playlist");
+	}
+
+	@Test
+	void noFileNameIsClaimedByTwoUpdates() {
+		Map<String, MusicUpdate> seen = new java.util.HashMap<>();
+		for (MusicUpdate update : MusicUpdate.values()) {
+			for (String fileName : update.fileNames()) {
+				MusicUpdate previous = seen.put(fileName, update);
+				assertTrue(previous == null, fileName + " is listed under both " + previous + " and " + update);
+			}
+		}
 	}
 
 	@Test

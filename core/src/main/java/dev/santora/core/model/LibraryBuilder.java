@@ -2,6 +2,7 @@ package dev.santora.core.model;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,7 +33,7 @@ public final class LibraryBuilder {
 		}
 		tracks.sort(Comparator.comparing(Track::title, String.CASE_INSENSITIVE_ORDER));
 
-		return new MusicLibrary(tracks, contextAlbums(tracks), artistAlbums(tracks), playlistAlbums(tracks));
+		return new MusicLibrary(tracks, contextAlbums(tracks), artistAlbums(tracks), updateAlbums(tracks));
 	}
 
 	private static List<Album> contextAlbums(List<Track> tracks) {
@@ -69,27 +70,24 @@ public final class LibraryBuilder {
 		return albums;
 	}
 
-	private static List<Album> playlistAlbums(List<Track> tracks) {
-		Map<String, List<Track>> byEvent = new TreeMap<>();
+	private static List<Album> updateAlbums(List<Track> tracks) {
+		Map<MusicUpdate, List<Track>> byUpdate = new EnumMap<>(MusicUpdate.class);
 		for (Track track : tracks) {
-			for (String event : track.eventIds()) {
-				byEvent.computeIfAbsent(event, k -> new ArrayList<>()).add(track);
-			}
+			byUpdate.computeIfAbsent(MusicUpdate.of(track.soundPath()), k -> new ArrayList<>()).add(track);
 		}
 
 		List<Album> albums = new ArrayList<>();
-		byEvent.forEach((event, list) -> {
-			// Music discs already get their own album, so we skip making a one-song playlist for every disc.
-			if (stripNamespace(event).startsWith("music_disc.")) {
-				return;
-			}
+		for (MusicUpdate update : MusicUpdate.values()) {
+			List<Track> list = byUpdate.getOrDefault(update, List.of());
 			if (list.isEmpty()) {
-				return;
+				continue;
 			}
-			albums.add(new Album("event:" + event, playlistName(event), plural(list.size()),
-					AlbumKind.PLAYLIST, list, null));
-		});
-		albums.sort(Comparator.comparing(Album::title, String.CASE_INSENSITIVE_ORDER));
+			String subtitle = update.versionLabel().isEmpty()
+					? plural(list.size())
+					: update.versionLabel() + " · " + plural(list.size());
+			albums.add(new Album("update:" + update.id(), update.displayName(), subtitle,
+					AlbumKind.UPDATE, list, null));
+		}
 		return albums;
 	}
 
@@ -101,16 +99,6 @@ public final class LibraryBuilder {
 			return "jukebox_song." + namespace + "." + path.substring(RECORDS_PREFIX.length());
 		}
 		return path.replace('/', '.');
-	}
-
-	static String playlistName(String eventId) {
-		String path = stripNamespace(eventId);
-		for (String prefix : new String[] { "music.overworld.", "music.nether.", "music." }) {
-			if (path.startsWith(prefix)) {
-				return prettify(path.substring(prefix.length()).replace('.', '_'));
-			}
-		}
-		return prettify(path.replace('.', '_'));
 	}
 
 	static String prettify(String raw) {
