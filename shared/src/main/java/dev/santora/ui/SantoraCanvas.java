@@ -16,7 +16,9 @@ public interface SantoraCanvas {
 
 	void text(String text, int x, int y, int argb, boolean shadow);
 
-	void textCentered(String text, int centerX, int y, int argb);
+	default void textCentered(String text, int centerX, int y, int argb) {
+		text(text, centerX - textWidth(text) / 2, y, argb, false);
+	}
 
 	int textWidth(String text);
 

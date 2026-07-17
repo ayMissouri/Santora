@@ -11,6 +11,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayQueueTest {
@@ -162,6 +163,36 @@ class PlayQueueTest {
 
 		q.clearQueue();
 		assertTrue(q.userQueue().isEmpty());
+	}
+
+	@Test
+	void clearUpcomingEmptiesUpNextButKeepsCurrentAndHistory() {
+		PlayQueue q = seeded();
+		q.setContext("album", ALBUM, -1);
+		q.next();
+		q.next();
+		q.enqueue(track("zz"));
+
+		q.clearUpcoming();
+		assertEquals(0, q.upcomingCount());
+		assertEquals("b", q.current().title(), "clearing the queue must not kick out the current track");
+		assertTrue(q.hasPrevious(), "history should survive so previous still works");
+		assertTrue(q.next().isEmpty(), "nothing is left to play once cleared");
+	}
+
+	@Test
+	void resetForgetsEverything() {
+		PlayQueue q = seeded();
+		q.setContext("album", ALBUM, -1);
+		q.next();
+		q.next();
+		q.enqueue(track("zz"));
+
+		q.reset();
+		assertEquals(0, q.upcomingCount());
+		assertNull(q.current());
+		assertFalse(q.hasPrevious());
+		assertTrue(q.next().isEmpty());
 	}
 
 	@Test

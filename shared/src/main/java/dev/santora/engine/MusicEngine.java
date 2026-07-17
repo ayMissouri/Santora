@@ -153,6 +153,7 @@ public final class MusicEngine {
 			stopAllVoices();
 			paused = false;
 			resumeAtMs = 0;
+			queue.reset();
 			resetMusicCategoryGain(mc);
 		}
 

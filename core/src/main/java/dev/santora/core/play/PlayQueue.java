@@ -163,6 +163,22 @@ public final class PlayQueue {
 		userQueue.clear();
 	}
 
+	/** Empties the queue but the current track keeps playing. */
+	public void clearUpcoming() {
+		userQueue.clear();
+		context = List.of();
+		contextId = "";
+		order.clear();
+		cursor = -1;
+	}
+
+	/** Resets the queue when the mode is switched. */
+	public void reset() {
+		clearUpcoming();
+		history.clear();
+		current = null;
+	}
+
 	public void removeFromQueue(int index) {
 		if (index >= 0 && index < userQueue.size()) {
 			userQueue.remove(index);

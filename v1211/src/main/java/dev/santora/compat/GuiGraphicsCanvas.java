@@ -47,11 +47,6 @@ public final class GuiGraphicsCanvas implements SantoraCanvas {
 	}
 
 	@Override
-	public void textCentered(String text, int centerX, int y, int argb) {
-		gfx.drawCenteredString(font, text, centerX, y, argb);
-	}
-
-	@Override
 	public int textWidth(String text) {
 		return font.width(text);
 	}

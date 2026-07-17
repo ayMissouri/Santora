@@ -156,6 +156,11 @@ public final class SantoraUi {
 				Theme.RAIL_WIDTH - 1, Theme.MENU_ROW_HEIGHT);
 	}
 
+	private Rect railStatusRect() {
+		Rect rail = railRect();
+		return new Rect(rail.x() + 8, rail.bottom() - 28, rail.w() - 16, 11);
+	}
+
 	private int gridCols() {
 		int usable = mainRect().w() - Theme.PADDING * 2;
 		return Math.max(2, (usable + Theme.GRID_GAP) / (Theme.TILE_TARGET_WIDTH + Theme.GRID_GAP));
@@ -268,7 +273,7 @@ public final class SantoraUi {
 
 		canvas.outline(winX, winY, winW, winH, Theme.FRAME);
 
-		renderDeckTooltips(canvas, mouseX, mouseY);
+		renderTooltips(canvas, mouseX, mouseY);
 		renderContextMenu(canvas, mouseX, mouseY);
 		renderNamingModal(canvas);
 	}
@@ -330,17 +335,25 @@ public final class SantoraUi {
 			}
 		}
 
-		renderRailStatus(canvas, rail);
+		renderRailStatus(canvas, rail, mouseX, mouseY);
 	}
 
-	private void renderRailStatus(SantoraCanvas canvas, Rect rail) {
+	private void renderRailStatus(SantoraCanvas canvas, Rect rail, int mouseX, int mouseY) {
 		int y = rail.bottom() - 26;
 		canvas.fill(rail.x() + 8, y - 5, rail.right() - 8, y - 4, Theme.DIVIDER);
 
 		boolean manual = engine.isManualMode();
+		Rect status = railStatusRect();
+		boolean hover = manual && status.contains(mouseX, mouseY, 2);
+		if (hover) {
+			canvas.fill(status.x() - 2, status.y() - 1, status.right() + 2, status.bottom() + 1,
+					Theme.ROW_HOVER);
+		}
+
 		int color = manual ? Theme.ACCENT : Theme.TEXT_MUTED;
 		canvas.fill(rail.x() + 10, y + 2, rail.x() + 14, y + 6, color);
-		canvas.text(manual ? "MANUAL" : "VANILLA", rail.x() + 18, y, color, false);
+		canvas.text(manual ? "MANUAL" : "VANILLA", rail.x() + 18, y,
+				hover ? Theme.TEXT_PRIMARY : color, false);
 
 		canvas.text(engine.library().size() + " tracks", rail.x() + 10, y + 12,
 				Theme.TEXT_MUTED, false);
@@ -412,7 +425,7 @@ public final class SantoraUi {
 			renderSearchField(canvas);
 			renderTrackList(canvas, mouseX, mouseY);
 		} else if (view == View.QUEUE) {
-			renderQueueHeader(canvas, main);
+			renderQueueHeader(canvas, main, mouseX, mouseY);
 			renderTrackList(canvas, mouseX, mouseY);
 		} else if (openAlbum() == null) {
 			renderGrid(canvas, mouseX, mouseY);
@@ -527,11 +540,23 @@ public final class SantoraUi {
 				Theme.TEXT_MUTED, false);
 	}
 
-	private void renderQueueHeader(SantoraCanvas canvas, Rect main) {
+	private Rect clearQueueRect() {
+		Rect main = mainRect();
+		return new Rect(main.right() - Theme.PADDING - 40, main.y() + 4, 40, 14);
+	}
+
+	private void renderQueueHeader(SantoraCanvas canvas, Rect main, int mouseX, int mouseY) {
 		canvas.text("Queue", main.x() + Theme.PADDING, main.y() + 7, Theme.TEXT_PRIMARY, false);
+
+		int right = main.right() - Theme.PADDING;
+		if (engine.queue().upcomingCount() > 0) {
+			Rect clear = clearQueueRect();
+			drawButton(canvas, mouseX, mouseY, clear, "Clear", false);
+			right = clear.x() - 8;
+		}
 		String queued = engine.queue().upcomingCount() + " up next";
-		canvas.text(queued, main.right() - Theme.PADDING - canvas.textWidth(queued),
-				main.y() + 7, Theme.TEXT_SECONDARY, false);
+		canvas.text(queued, right - canvas.textWidth(queued), main.y() + 7,
+				Theme.TEXT_SECONDARY, false);
 	}
 
 	// Settings
@@ -994,7 +1019,7 @@ public final class SantoraUi {
 		}
 	}
 
-	private void renderDeckTooltips(SantoraCanvas canvas, int mouseX, int mouseY) {
+	private void renderTooltips(SantoraCanvas canvas, int mouseX, int mouseY) {
 		if (menuItems != null || naming) {
 			return;
 		}
@@ -1007,6 +1032,8 @@ public final class SantoraUi {
 				case ONE -> "Repeat one";
 			};
 			drawTooltip(canvas, label, deckRepeatRect());
+		} else if (engine.isManualMode() && railStatusRect().contains(mouseX, mouseY, 2)) {
+			drawTooltip(canvas, "Back to vanilla music", railStatusRect());
 		}
 	}
 
@@ -1362,6 +1389,12 @@ public final class SantoraUi {
 		if (!railRect().contains(mouseX, mouseY)) {
 			return false;
 		}
+		if (railStatusRect().contains(mouseX, mouseY, 2)) {
+			if (engine.isManualMode()) {
+				engine.setManualMode(false);
+			}
+			return true;
+		}
 		View[] views = View.values();
 		for (int i = 0; i < views.length; i++) {
 			if (menuRect(i).contains(mouseX, mouseY)) {
@@ -1402,6 +1435,12 @@ public final class SantoraUi {
 		}
 
 		if (engine.library().isEmpty()) {
+			return true;
+		}
+
+		if (view == View.QUEUE && engine.queue().upcomingCount() > 0
+				&& clearQueueRect().contains(mouseX, mouseY)) {
+			engine.queue().clearUpcoming();
 			return true;
 		}
 
