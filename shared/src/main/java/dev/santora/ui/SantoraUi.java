@@ -5,10 +5,12 @@ import dev.santora.core.model.Album;
 import dev.santora.core.model.AlbumKind;
 import dev.santora.core.model.MusicContext;
 import dev.santora.core.model.MusicLibrary;
+import dev.santora.core.model.Playlists;
 import dev.santora.core.model.Track;
 import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ public final class SantoraUi {
 		ALBUMS("Albums"),
 		ARTISTS("Artists"),
 		UPDATES("Updates"),
+		PLAYLISTS("Playlists"),
 		QUEUE("Queue");
 
 		final String label;
@@ -52,9 +55,27 @@ public final class SantoraUi {
 	private static final int DRAG_EDGE = 14;
 	private static final int DRAG_SCROLL_STEP = 3;
 
+	private static final int MENU_WIDTH = 120;
+	private static final int MENU_ITEM_HEIGHT = 13;
+	private static final int MENU_PAD = 3;
+	private static final int NAME_INPUT_MAX = 24;
+
 	private int dragIndex = -1;
 	private int dragArmY;
 	private boolean dragging;
+
+	private record MenuItem(String label, Runnable action) {
+	}
+
+	private List<MenuItem> menuItems;
+	private int menuX;
+	private int menuY;
+	private int menuDrawX;
+	private int menuDrawY;
+
+	private boolean naming;
+	private final StringBuilder nameInput = new StringBuilder();
+	private String namingTrackPath;
 
 	private int winX;
 	private int winY;
@@ -212,6 +233,9 @@ public final class SantoraUi {
 		renderDeck(canvas, mouseX, mouseY);
 
 		canvas.outline(winX, winY, winW, winH, Theme.FRAME);
+
+		renderContextMenu(canvas, mouseX, mouseY);
+		renderNamingModal(canvas);
 	}
 
 	// Top bar
@@ -262,7 +286,7 @@ public final class SantoraUi {
 					selected ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
 
 			if (views[i] == View.QUEUE) {
-				int queued = engine.queue().userQueue().size();
+				int queued = engine.queue().upcomingCount();
 				if (queued > 0) {
 					String count = String.valueOf(queued);
 					canvas.text(count, row.right() - 6 - canvas.textWidth(count), textY,
@@ -290,7 +314,7 @@ public final class SantoraUi {
 	// Main area
 	private Album openAlbum() {
 		return openAlbumId.isEmpty() ? null
-				: engine.library().albumById(openAlbumId).orElse(null);
+				: engine.albumById(openAlbumId).orElse(null);
 	}
 
 	private List<Album> browseAlbums() {
@@ -299,8 +323,13 @@ public final class SantoraUi {
 			case ALBUMS -> library.contextAlbums();
 			case ARTISTS -> library.artistAlbums();
 			case UPDATES -> library.updateAlbums();
+			case PLAYLISTS -> engine.playlistAlbums();
 			case QUEUE -> List.of();
 		};
+	}
+
+	private int gridTileCount(List<Album> albums) {
+		return albums.size() + (view == View.PLAYLISTS ? 1 : 0);
 	}
 
 	private List<Track> visibleTracks() {
@@ -341,14 +370,15 @@ public final class SantoraUi {
 	private void renderGrid(SantoraCanvas canvas, int mouseX, int mouseY) {
 		Rect main = mainRect();
 		List<Album> albums = browseAlbums();
+		int tileCount = gridTileCount(albums);
 
-		if (albums.isEmpty()) {
+		if (tileCount == 0) {
 			canvas.textCentered("No albums here", main.x() + main.w() / 2,
 					main.y() + main.h() / 2 - 4, Theme.TEXT_MUTED);
 			return;
 		}
 
-		gridScroll = clamp(gridScroll, 0, Math.max(0, gridContentHeight(albums.size()) - main.h()));
+		gridScroll = clamp(gridScroll, 0, Math.max(0, gridContentHeight(tileCount) - main.h()));
 
 		canvas.pushScissor(main.x(), main.y(), main.w(), main.h());
 		for (int i = 0; i < albums.size(); i++) {
@@ -372,7 +402,28 @@ public final class SantoraUi {
 			canvas.text(album.trackCount() + (album.trackCount() == 1 ? " track" : " tracks"),
 					tile.x() + 1, tile.y() + Theme.TILE_ART_HEIGHT + 14, Theme.TEXT_MUTED, false);
 		}
+		if (view == View.PLAYLISTS) {
+			renderNewPlaylistTile(canvas, albums.size(), mouseX, mouseY);
+		}
 		canvas.popScissor();
+	}
+
+	private void renderNewPlaylistTile(SantoraCanvas canvas, int index, int mouseX, int mouseY) {
+		Rect main = mainRect();
+		Rect tile = tileRect(index);
+		if (tile.bottom() < main.y() || tile.y() > main.bottom()) {
+			return;
+		}
+		boolean hover = tile.contains(mouseX, mouseY) && main.contains(mouseX, mouseY);
+
+		canvas.fill(tile.x(), tile.y(), tile.right(), tile.y() + Theme.TILE_ART_HEIGHT, 0xFF10141F);
+		canvas.outline(tile.x(), tile.y(), tile.w(), Theme.TILE_ART_HEIGHT,
+				hover ? Theme.ACCENT : Theme.DIVIDER);
+		canvas.textCentered("+", tile.x() + tile.w() / 2,
+				tile.y() + Theme.TILE_ART_HEIGHT / 2 - canvas.lineHeight() / 2,
+				hover ? Theme.ACCENT : Theme.TEXT_SECONDARY);
+		canvas.text("New Playlist", tile.x() + 1, tile.y() + Theme.TILE_ART_HEIGHT + 4,
+				hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
 	}
 
 	// Album detail
@@ -452,14 +503,18 @@ public final class SantoraUi {
 							Theme.TEXT_MUTED, false);
 				}
 
-				int timeW = 30;
+				int heartX = list.right() - Theme.PADDING - 46;
 				int titleX = list.x() + Theme.PADDING + 16;
-				int titleMax = list.right() - titleX - timeW - Theme.PADDING;
+				int titleMax = heartX - 4 - titleX;
 
 				canvas.text(canvas.ellipsize(track.title(), titleMax), titleX, textY - 4,
 						isPlaying ? Theme.ACCENT : Theme.TEXT_PRIMARY, false);
 				canvas.text(canvas.ellipsize(track.artist(), titleMax), titleX, textY + 5,
 						Theme.TEXT_MUTED, false);
+
+				if (engine.playlists().isFavorite(track.soundPath())) {
+					drawHeart(canvas, heartX, rowY + rowH / 2 - 3, 1, Theme.ACCENT);
+				}
 
 				OptionalDouble seconds = engine.durationSeconds(track);
 				String time = seconds.isPresent()
@@ -483,6 +538,15 @@ public final class SantoraUi {
 		for (int i = -1; i <= 1; i++) {
 			canvas.fill(x, cy + i * 3 - 1, x + 9, cy + i * 3, color);
 		}
+	}
+
+	private void drawHeart(SantoraCanvas canvas, int x, int y, int s, int color) {
+		canvas.fill(x + s, y, x + 3 * s, y + s, color);
+		canvas.fill(x + 4 * s, y, x + 6 * s, y + s, color);
+		canvas.fill(x, y + s, x + 7 * s, y + 3 * s, color);
+		canvas.fill(x + s, y + 3 * s, x + 6 * s, y + 4 * s, color);
+		canvas.fill(x + 2 * s, y + 4 * s, x + 5 * s, y + 5 * s, color);
+		canvas.fill(x + 3 * s, y + 5 * s, x + 4 * s, y + 6 * s, color);
 	}
 
 	private void drawEqBars(SantoraCanvas canvas, int x, int bottomY, int color) {
@@ -510,12 +574,18 @@ public final class SantoraUi {
 			return;
 		}
 
+		boolean favorites = album.id().equals(Playlists.FAVORITES_ID);
 		int base = album.kind() == AlbumKind.CONTEXT
 				? Theme.artColor(contextOf(album))
-				: Theme.artColorFor(album.id());
+				: favorites ? 0xFF8C3A55 : Theme.artColorFor(album.id());
 		canvas.fillGradient(x, y, x + w, y + h, base, Theme.blend(base, 0xFF000000, 0.45f));
 		canvas.outline(x, y, w, h, 0x33FFFFFF);
 
+		if (favorites) {
+			int s = Math.max(1, Math.min(w, h) / 16);
+			drawHeart(canvas, x + (w - 7 * s) / 2, y + (h - 6 * s) / 2, s, 0xAAFFFFFF);
+			return;
+		}
 		String initials = album.title().isEmpty() ? "?" : album.title().substring(0, 1).toUpperCase();
 		canvas.textCentered(initials, x + w / 2, y + h / 2 - canvas.lineHeight() / 2, 0x66FFFFFF);
 	}
@@ -668,6 +738,30 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseClicked(int mouseX, int mouseY, int button) {
+		if (naming) {
+			if (!namingRect().contains(mouseX, mouseY)) {
+				cancelNaming();
+			}
+			return true;
+		}
+
+		if (menuItems != null) {
+			if (menuRect().contains(mouseX, mouseY)) {
+				if (button == 0) {
+					runMenuItem(mouseY);
+				}
+				return true;
+			}
+			closeMenu();
+			if (button != 1) {
+				return new Rect(winX, winY, winW, winH).contains(mouseX, mouseY);
+			}
+		}
+
+		if (button == 1) {
+			return openContextMenu(mouseX, mouseY);
+		}
+
 		if (button != 0) {
 			return false;
 		}
@@ -682,6 +776,233 @@ public final class SantoraUi {
 		}
 
 		return new Rect(winX, winY, winW, winH).contains(mouseX, mouseY);
+	}
+
+	// Right-click context menu
+	private Rect menuRect() {
+		return new Rect(menuDrawX, menuDrawY, MENU_WIDTH,
+				menuItems.size() * MENU_ITEM_HEIGHT + MENU_PAD * 2);
+	}
+
+	private void showMenu(List<MenuItem> items, int x, int y) {
+		menuItems = items;
+		menuX = x;
+		menuY = y;
+		menuDrawX = x;
+		menuDrawY = y;
+	}
+
+	private void closeMenu() {
+		menuItems = null;
+	}
+
+	private void runMenuItem(int mouseY) {
+		int offset = mouseY - menuDrawY - MENU_PAD;
+		int index = offset / MENU_ITEM_HEIGHT;
+		if (offset < 0 || index >= menuItems.size()) {
+			return;
+		}
+		List<MenuItem> before = menuItems;
+		menuItems.get(index).action().run();
+		if (menuItems == before) {
+			closeMenu();
+		}
+	}
+
+	private boolean openContextMenu(int mouseX, int mouseY) {
+		boolean inWindow = new Rect(winX, winY, winW, winH).contains(mouseX, mouseY);
+		if (engine.library().isEmpty()) {
+			return inWindow;
+		}
+
+		boolean listVisible = view == View.QUEUE || openAlbum() != null;
+		if (listVisible && listRect().contains(mouseX, mouseY)) {
+			List<Track> tracks = visibleTracks();
+			int row = (mouseY - listRect().y() + trackScroll) / Theme.ROW_HEIGHT;
+			if (row >= 0 && row < tracks.size()) {
+				openTrackMenu(tracks, row, mouseX, mouseY);
+			}
+			return true;
+		}
+
+		if (view != View.QUEUE && openAlbum() == null && mainRect().contains(mouseX, mouseY)) {
+			List<Album> albums = browseAlbums();
+			for (int i = 0; i < albums.size(); i++) {
+				if (tileRect(i).contains(mouseX, mouseY)) {
+					openTileMenu(albums.get(i), mouseX, mouseY);
+					break;
+				}
+			}
+			return true;
+		}
+
+		if (deckRect().contains(mouseX, mouseY) && engine.currentTrack() != null) {
+			openDeckMenu(engine.currentTrack(), mouseX, mouseY);
+			return true;
+		}
+
+		return inWindow;
+	}
+
+	private void openTrackMenu(List<Track> tracks, int row, int mouseX, int mouseY) {
+		Track track = tracks.get(row);
+		String path = track.soundPath();
+		Album open = openAlbum();
+
+		List<MenuItem> items = new ArrayList<>();
+		if (view != View.QUEUE && open != null) {
+			items.add(new MenuItem("Play", () -> engine.playAlbum(open, row)));
+		} else {
+			items.add(new MenuItem("Play", () -> engine.playTrack(track)));
+		}
+		items.add(new MenuItem("Play next", () -> engine.queue().enqueueNext(track)));
+		items.add(new MenuItem("Add to queue", () -> engine.queue().enqueue(track)));
+		items.add(favoriteItem(path));
+		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(path)));
+
+		if (view == View.QUEUE) {
+			int queueIndex = row - queueRowOffset();
+			if (queueIndex >= 0 && queueIndex < engine.queue().userQueue().size()) {
+				items.add(new MenuItem("Remove from queue",
+						() -> engine.queue().removeFromQueue(queueIndex)));
+			}
+		} else if (open != null && open.kind() == AlbumKind.PLAYLIST
+				&& !open.id().equals(Playlists.FAVORITES_ID)) {
+			items.add(new MenuItem("Remove from playlist", () -> {
+				engine.playlists().removeTrack(open.id(), path);
+				Santora.savePlaylists();
+			}));
+		}
+		showMenu(items, mouseX, mouseY);
+	}
+
+	private void openTileMenu(Album album, int mouseX, int mouseY) {
+		List<MenuItem> items = new ArrayList<>();
+		items.add(new MenuItem("Play", () -> engine.playAlbum(album, 0)));
+		items.add(new MenuItem("Shuffle", () -> {
+			engine.setShuffle(true);
+			engine.playAlbum(album, -1);
+		}));
+		items.add(new MenuItem("Add to queue",
+				() -> album.tracks().forEach(engine.queue()::enqueue)));
+		if (album.kind() == AlbumKind.PLAYLIST && !album.id().equals(Playlists.FAVORITES_ID)) {
+			items.add(new MenuItem("Delete playlist", () -> {
+				engine.playlists().delete(album.id());
+				Santora.savePlaylists();
+			}));
+		}
+		showMenu(items, mouseX, mouseY);
+	}
+
+	private void openDeckMenu(Track track, int mouseX, int mouseY) {
+		List<MenuItem> items = new ArrayList<>();
+		items.add(new MenuItem("Play next", () -> engine.queue().enqueueNext(track)));
+		items.add(new MenuItem("Add to queue", () -> engine.queue().enqueue(track)));
+		items.add(favoriteItem(track.soundPath()));
+		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(track.soundPath())));
+		showMenu(items, mouseX, mouseY);
+	}
+
+	private MenuItem favoriteItem(String path) {
+		boolean favorite = engine.playlists().isFavorite(path);
+		return new MenuItem(favorite ? "Unfavorite" : "Favorite", () -> {
+			engine.playlists().toggleFavorite(path);
+			Santora.savePlaylists();
+		});
+	}
+
+	private void showPlaylistPicker(String path) {
+		List<MenuItem> items = new ArrayList<>();
+		for (Playlists.Playlist playlist : engine.playlists().all()) {
+			String id = playlist.id();
+			items.add(new MenuItem(playlist.name(), () -> {
+				engine.playlists().addTrack(id, path);
+				Santora.savePlaylists();
+			}));
+		}
+		items.add(new MenuItem("+ New playlist", () -> startNaming(path)));
+		menuItems = items;
+	}
+
+	private void renderContextMenu(SantoraCanvas canvas, int mouseX, int mouseY) {
+		if (menuItems == null) {
+			return;
+		}
+		int h = menuItems.size() * MENU_ITEM_HEIGHT + MENU_PAD * 2;
+		menuDrawX = clamp(menuX, winX, winX + winW - MENU_WIDTH);
+		menuDrawY = clamp(menuY, winY, winY + winH - h);
+
+		int x = menuDrawX;
+		int y = menuDrawY;
+		canvas.fill(x, y, x + MENU_WIDTH, y + h, Theme.DECK);
+		canvas.outline(x, y, MENU_WIDTH, h, Theme.FRAME);
+
+		for (int i = 0; i < menuItems.size(); i++) {
+			int rowY = y + MENU_PAD + i * MENU_ITEM_HEIGHT;
+			boolean hover = mouseX >= x && mouseX < x + MENU_WIDTH
+					&& mouseY >= rowY && mouseY < rowY + MENU_ITEM_HEIGHT;
+			if (hover) {
+				canvas.fill(x + 1, rowY, x + MENU_WIDTH - 1, rowY + MENU_ITEM_HEIGHT, Theme.ROW_HOVER);
+			}
+			canvas.text(canvas.ellipsize(menuItems.get(i).label(), MENU_WIDTH - 16), x + 8,
+					rowY + (MENU_ITEM_HEIGHT - canvas.lineHeight()) / 2 + 1,
+					hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
+		}
+	}
+
+	// New playlist naming
+	private void startNaming(String pendingTrackPath) {
+		naming = true;
+		namingTrackPath = pendingTrackPath;
+		nameInput.setLength(0);
+	}
+
+	private void cancelNaming() {
+		naming = false;
+		namingTrackPath = null;
+		nameInput.setLength(0);
+	}
+
+	private void confirmNaming() {
+		String name = nameInput.toString().trim();
+		if (name.isEmpty()) {
+			return;
+		}
+		String id = engine.playlists().create(name);
+		if (namingTrackPath != null) {
+			engine.playlists().addTrack(id, namingTrackPath);
+		}
+		Santora.savePlaylists();
+		cancelNaming();
+	}
+
+	private Rect namingRect() {
+		int w = 190;
+		int h = 56;
+		return new Rect(winX + (winW - w) / 2, winY + (winH - h) / 2, w, h);
+	}
+
+	private void renderNamingModal(SantoraCanvas canvas) {
+		if (!naming) {
+			return;
+		}
+		canvas.fill(winX, winY, winX + winW, winY + winH, 0x99050810);
+
+		Rect box = namingRect();
+		canvas.fill(box.x(), box.y(), box.right(), box.bottom(), Theme.WINDOW);
+		canvas.outline(box.x(), box.y(), box.w(), box.h(), Theme.FRAME);
+		canvas.text("New playlist", box.x() + 8, box.y() + 7, Theme.TEXT_PRIMARY, false);
+
+		Rect field = new Rect(box.x() + 8, box.y() + 19, box.w() - 16, 14);
+		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), 0xFF0C0F17);
+		canvas.outline(field.x(), field.y(), field.w(), field.h(), Theme.DIVIDER);
+
+		boolean caret = System.currentTimeMillis() / 400 % 2 == 0;
+		canvas.text(nameInput + (caret ? "_" : ""), field.x() + 4,
+				field.y() + (field.h() - canvas.lineHeight()) / 2 + 1, Theme.TEXT_PRIMARY, false);
+
+		canvas.text("Enter to create - Esc to cancel", box.x() + 8, box.y() + 40,
+				Theme.TEXT_MUTED, false);
 	}
 
 	public boolean consumeCloseRequest() {
@@ -706,6 +1027,7 @@ public final class SantoraUi {
 
 	private void selectView(View next) {
 		cancelDrag();
+		closeMenu();
 		if (next == View.QUEUE) {
 			if (view != View.QUEUE) {
 				queueReturnView = view;
@@ -738,8 +1060,11 @@ public final class SantoraUi {
 				if (tileRect(i).contains(mouseX, mouseY)) {
 					openAlbumId = albums.get(i).id();
 					trackScroll = 0;
-					break;
+					return true;
 				}
+			}
+			if (view == View.PLAYLISTS && tileRect(albums.size()).contains(mouseX, mouseY)) {
+				startNaming(null);
 			}
 			return true;
 		}
@@ -893,6 +1218,11 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseScrolled(int mouseX, int mouseY, double amount) {
+		if (naming) {
+			return true;
+		}
+		closeMenu();
+
 		Rect main = mainRect();
 		if (!main.contains(mouseX, mouseY)) {
 			return false;
@@ -900,7 +1230,7 @@ public final class SantoraUi {
 		int step = (int) (-amount * 16);
 
 		if (view != View.QUEUE && openAlbum() == null) {
-			int max = Math.max(0, gridContentHeight(browseAlbums().size()) - main.h());
+			int max = Math.max(0, gridContentHeight(gridTileCount(browseAlbums())) - main.h());
 			gridScroll = clamp(gridScroll + step, 0, max);
 		} else {
 			Rect list = listRect();
@@ -911,6 +1241,25 @@ public final class SantoraUi {
 	}
 
 	public boolean keyPressed(int keyCode) {
+		if (naming) {
+			switch (keyCode) {
+				case 257, 335 -> confirmNaming(); // enter
+				case 256 -> cancelNaming(); // escape
+				case 259 -> { // backspace
+					if (!nameInput.isEmpty()) {
+						nameInput.deleteCharAt(nameInput.length() - 1);
+					}
+				}
+				default -> { }
+			}
+			return true;
+		}
+
+		if (menuItems != null && keyCode == 256) { // escape
+			closeMenu();
+			return true;
+		}
+
 		switch (keyCode) {
 			case 32 -> { // space
 				engine.togglePlayPause();
@@ -918,6 +1267,7 @@ public final class SantoraUi {
 			}
 			case 81 -> { // Q
 				cancelDrag();
+				closeMenu();
 				if (view == View.QUEUE) {
 					view = queueReturnView;
 				} else {
@@ -933,8 +1283,19 @@ public final class SantoraUi {
 		}
 	}
 
+	public boolean charTyped(CharacterEvent event) {
+		if (!naming) {
+			return false;
+		}
+		if (event.isAllowedChatCharacter() && nameInput.length() < NAME_INPUT_MAX) {
+			nameInput.append(event.codepointAsString());
+		}
+		return true;
+	}
+
 	public void onClose() {
 		Santora.saveConfig();
+		Santora.savePlaylists();
 	}
 
 	private static int clamp(int value, int min, int max) {

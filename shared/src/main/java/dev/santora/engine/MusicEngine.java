@@ -6,6 +6,7 @@ import dev.santora.core.audio.OggDuration;
 import dev.santora.core.config.SantoraConfig;
 import dev.santora.core.model.Album;
 import dev.santora.core.model.MusicLibrary;
+import dev.santora.core.model.Playlists;
 import dev.santora.core.model.Track;
 import dev.santora.core.play.Fade;
 import dev.santora.core.play.PlayQueue;
@@ -51,9 +52,14 @@ public final class MusicEngine {
 
 	private final SantoraConfig config = new SantoraConfig();
 	private final PlayQueue queue = new PlayQueue();
+	private final Playlists playlists = new Playlists();
 
 	private MusicLibrary library = MusicLibrary.EMPTY;
 	private Map<String, PlayableSound> playable = Map.of();
+
+	private List<Album> playlistAlbums = List.of();
+	private int playlistAlbumsRevision = -1;
+	private MusicLibrary playlistAlbumsLibrary;
 
 	private final Map<String, Double> durations = new ConcurrentHashMap<>();
 	private final Executor durationExecutor = Executors.newSingleThreadExecutor(r -> {
@@ -102,6 +108,27 @@ public final class MusicEngine {
 		return queue;
 	}
 
+	public Playlists playlists() {
+		return playlists;
+	}
+
+	public List<Album> playlistAlbums() {
+		if (playlistAlbumsRevision != playlists.revision() || playlistAlbumsLibrary != library) {
+			playlistAlbums = playlists.toAlbums(library);
+			playlistAlbumsRevision = playlists.revision();
+			playlistAlbumsLibrary = library;
+		}
+		return playlistAlbums;
+	}
+
+	public Optional<Album> albumById(String id) {
+		Optional<Album> album = library.albumById(id);
+		if (album.isPresent()) {
+			return album;
+		}
+		return playlistAlbums().stream().filter(a -> a.id().equals(id)).findFirst();
+	}
+
 	public boolean isManualMode() {
 		return manualMode;
 	}
@@ -142,6 +169,11 @@ public final class MusicEngine {
 		queue.setContext(album.id(), album.tracks(), index);
 		queue.clearHistory();
 		advance(true);
+	}
+
+	public void playTrack(Track track) {
+		setManualMode(true);
+		startTrack(track, config.crossfadeEnabled());
 	}
 
 	public void shuffleAll() {

@@ -3,6 +3,7 @@ package dev.santora;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
 import dev.santora.config.ConfigIo;
+import dev.santora.config.PlaylistIo;
 import dev.santora.engine.MusicEngine;
 import dev.santora.platform.SantoraPlatform;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -30,6 +31,7 @@ public final class Santora {
 	public static void init(SantoraPlatform platform) {
 		SantoraPlatform.Holder.set(platform);
 		ConfigIo.load(MusicEngine.get().config());
+		PlaylistIo.load(MusicEngine.get().playlists());
 
 		// this is to support both game versions.
 		openKey = platform.registerKeyMapping(new KeyMapping(
@@ -74,7 +76,7 @@ public final class Santora {
 		if (!engine.config().resumeOnLaunch() || !engine.config().wasManual()) {
 			return;
 		}
-		engine.library().albumById(engine.config().lastContextId())
+		engine.albumById(engine.config().lastContextId())
 				.ifPresent(album -> engine.playAlbum(album, 0));
 	}
 
@@ -84,5 +86,9 @@ public final class Santora {
 
 	public static void saveConfig() {
 		ConfigIo.save(MusicEngine.get().config());
+	}
+
+	public static void savePlaylists() {
+		PlaylistIo.save(MusicEngine.get().playlists());
 	}
 }
