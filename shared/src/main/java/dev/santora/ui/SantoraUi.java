@@ -244,12 +244,12 @@ public final class SantoraUi {
 
 	private Rect deckRepeatRect() {
 		Rect prev = deckPrevRect();
-		return new Rect(prev.x() - 12 - 26, deckCenterY() - 6, 26, 11);
+		return new Rect(prev.x() - 12 - 11, deckCenterY() - 5, 11, 10);
 	}
 
 	private Rect deckShuffleRect() {
 		Rect repeat = deckRepeatRect();
-		return new Rect(repeat.x() - 4 - 28, deckCenterY() - 6, 28, 11);
+		return new Rect(repeat.x() - 10 - 11, deckCenterY() - 5, 11, 10);
 	}
 
 	public void render(SantoraCanvas canvas, int mouseX, int mouseY) {
@@ -268,6 +268,7 @@ public final class SantoraUi {
 
 		canvas.outline(winX, winY, winW, winH, Theme.FRAME);
 
+		renderDeckTooltips(canvas, mouseX, mouseY);
 		renderContextMenu(canvas, mouseX, mouseY);
 		renderNamingModal(canvas);
 	}
@@ -956,10 +957,15 @@ public final class SantoraUi {
 				transportColor(prev, mouseX, mouseY, prevEnabled));
 		drawTriangleLeft(canvas, prev.x() + 4, cy, 9, transportColor(prev, mouseX, mouseY, prevEnabled));
 
-		drawToggle(canvas, mouseX, mouseY, deckRepeatRect(),
-				engine.queue().repeat() == RepeatMode.ONE ? "RPT1" : "RPT",
-				engine.queue().repeat() != RepeatMode.OFF);
-		drawToggle(canvas, mouseX, mouseY, deckShuffleRect(), "SHUF", engine.queue().shuffle());
+		Rect repeat = deckRepeatRect();
+		RepeatMode mode = engine.queue().repeat();
+		drawRepeatIcon(canvas, repeat.x(), cy,
+				toggleColor(repeat, mouseX, mouseY, mode != RepeatMode.OFF),
+				mode == RepeatMode.ONE);
+
+		Rect shuffle = deckShuffleRect();
+		drawShuffleIcon(canvas, shuffle.x(), cy,
+				toggleColor(shuffle, mouseX, mouseY, engine.queue().shuffle()));
 
 		if (track != null) {
 			OptionalDouble duration = engine.durationSeconds(track);
@@ -988,6 +994,32 @@ public final class SantoraUi {
 		}
 	}
 
+	private void renderDeckTooltips(SantoraCanvas canvas, int mouseX, int mouseY) {
+		if (menuItems != null || naming) {
+			return;
+		}
+		if (deckShuffleRect().contains(mouseX, mouseY, 2)) {
+			drawTooltip(canvas, "Shuffle", deckShuffleRect());
+		} else if (deckRepeatRect().contains(mouseX, mouseY, 2)) {
+			String label = switch (engine.queue().repeat()) {
+				case OFF -> "Repeat";
+				case ALL -> "Repeat all";
+				case ONE -> "Repeat one";
+			};
+			drawTooltip(canvas, label, deckRepeatRect());
+		}
+	}
+
+	private void drawTooltip(SantoraCanvas canvas, String text, Rect anchor) {
+		int w = canvas.textWidth(text) + 8;
+		int h = canvas.lineHeight() + 5;
+		int x = clamp(anchor.x() + anchor.w() / 2 - w / 2, winX + 2, winX + winW - w - 2);
+		int y = anchor.y() - h - 4;
+		canvas.fill(x, y, x + w, y + h, Theme.DECK);
+		canvas.outline(x, y, w, h, Theme.FRAME);
+		canvas.text(text, x + 4, y + 3, Theme.TEXT_PRIMARY, false);
+	}
+
 	private int transportColor(Rect rect, int mouseX, int mouseY, boolean enabled) {
 		if (!enabled) {
 			return Theme.TEXT_MUTED;
@@ -1008,11 +1040,33 @@ public final class SantoraUi {
 				primary ? Theme.ON_ACCENT : Theme.TEXT_PRIMARY);
 	}
 
-	private void drawToggle(SantoraCanvas canvas, int mouseX, int mouseY, Rect rect,
-			String label, boolean on) {
+	private int toggleColor(Rect rect, int mouseX, int mouseY, boolean on) {
 		boolean hover = rect.contains(mouseX, mouseY, 2);
-		int color = on ? Theme.ACCENT : (hover ? Theme.TEXT_SECONDARY : Theme.TEXT_MUTED);
-		canvas.textCentered(label, rect.x() + rect.w() / 2, rect.y() + 1, color);
+		return on ? Theme.ACCENT : (hover ? Theme.TEXT_SECONDARY : Theme.TEXT_MUTED);
+	}
+
+	private void drawShuffleIcon(SantoraCanvas canvas, int x, int cy, int color) {
+		canvas.fill(x, cy - 3, x + 2, cy - 2, color);
+		canvas.fill(x, cy + 3, x + 2, cy + 4, color);
+		for (int i = 0; i < 7; i++) {
+			canvas.fill(x + 2 + i, cy - 3 + i, x + 3 + i, cy - 2 + i, color);
+			canvas.fill(x + 2 + i, cy + 3 - i, x + 3 + i, cy + 4 - i, color);
+		}
+		drawTriangleRight(canvas, x + 9, cy - 3, 3, color);
+		drawTriangleRight(canvas, x + 9, cy + 3, 3, color);
+	}
+
+	private void drawRepeatIcon(SantoraCanvas canvas, int x, int cy, int color, boolean one) {
+		canvas.fill(x + 1, cy - 4, x + 10, cy - 3, color);
+		canvas.fill(x, cy - 3, x + 1, cy + 3, color);
+		canvas.fill(x + 10, cy - 3, x + 11, cy + 3, color);
+		canvas.fill(x + 1, cy + 3, x + 3, cy + 4, color);
+		canvas.fill(x + 6, cy + 3, x + 10, cy + 4, color);
+		drawTriangleLeft(canvas, x + 4, cy + 3, 3, color);
+		if (one) {
+			canvas.fill(x + 6, cy - 2, x + 7, cy + 2, color);
+			canvas.fill(x + 5, cy - 1, x + 6, cy, color);
+		}
 	}
 
 	private void drawTriangleRight(SantoraCanvas canvas, int x, int cy, int h, int color) {
