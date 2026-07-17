@@ -16,6 +16,10 @@ public final class SantoraConfig {
 	private RepeatMode repeat = RepeatMode.OFF;
 	private boolean hideVanillaToast = true;
 
+	private boolean overlayOn = false;
+	private float overlayX = 0f;
+	private float overlayY = 0f;
+
 	private boolean resumeOnLaunch = false;
 	private boolean wasManual = false;
 	private String lastContextId = "";
@@ -91,6 +95,27 @@ public final class SantoraConfig {
 		this.hideVanillaToast = hide;
 	}
 
+	public boolean overlayOn() {
+		return overlayOn;
+	}
+
+	public void setOverlayOn(boolean on) {
+		this.overlayOn = on;
+	}
+
+	public float overlayX() {
+		return overlayX;
+	}
+
+	public float overlayY() {
+		return overlayY;
+	}
+
+	public void setOverlayPos(float x, float y) {
+		this.overlayX = clamp01(x);
+		this.overlayY = clamp01(y);
+	}
+
 	public boolean resumeOnLaunch() {
 		return resumeOnLaunch;
 	}
@@ -137,5 +162,9 @@ public final class SantoraConfig {
 
 	private static int clamp(int value, int min, int max) {
 		return value < min ? min : (value > max ? max : value);
+	}
+
+	private static float clamp01(float value) {
+		return value < 0f ? 0f : (value > 1f ? 1f : value);
 	}
 }

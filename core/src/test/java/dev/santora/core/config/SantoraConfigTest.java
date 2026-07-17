@@ -55,6 +55,18 @@ class SantoraConfigTest {
 	}
 
 	@Test
+	void overlayPositionStaysOnScreen() {
+		SantoraConfig config = new SantoraConfig();
+		config.setOverlayPos(0.25f, 0.75f);
+		assertEquals(0.25f, config.overlayX());
+		assertEquals(0.75f, config.overlayY());
+
+		config.setOverlayPos(-0.5f, 1.5f);
+		assertEquals(0f, config.overlayX());
+		assertEquals(1f, config.overlayY());
+	}
+
+	@Test
 	void crossfadeNeedsBothTheToggleAndADuration() {
 		SantoraConfig config = new SantoraConfig();
 		assertTrue(config.crossfadeEnabled());

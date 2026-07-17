@@ -48,6 +48,9 @@ public final class ConfigIo {
 			config.setShuffle(getBool(json, "shuffle", config.shuffle()));
 			config.setRepeat(parseRepeat(getString(json, "repeat", config.repeat().name())));
 			config.setHideVanillaToast(getBool(json, "hide_vanilla_toast", config.hideVanillaToast()));
+			config.setOverlayOn(getBool(json, "overlay_on", config.overlayOn()));
+			config.setOverlayPos(getFloat(json, "overlay_x", config.overlayX()),
+					getFloat(json, "overlay_y", config.overlayY()));
 			config.setResumeOnLaunch(getBool(json, "resume_on_launch", config.resumeOnLaunch()));
 			config.setWasManual(getBool(json, "was_manual", config.wasManual()));
 			config.setLastContextId(getString(json, "last_context_id", config.lastContextId()));
@@ -67,6 +70,9 @@ public final class ConfigIo {
 		json.addProperty("shuffle", config.shuffle());
 		json.addProperty("repeat", config.repeat().name());
 		json.addProperty("hide_vanilla_toast", config.hideVanillaToast());
+		json.addProperty("overlay_on", config.overlayOn());
+		json.addProperty("overlay_x", config.overlayX());
+		json.addProperty("overlay_y", config.overlayY());
 		json.addProperty("resume_on_launch", config.resumeOnLaunch());
 		json.addProperty("was_manual", config.wasManual());
 		json.addProperty("last_context_id", config.lastContextId());

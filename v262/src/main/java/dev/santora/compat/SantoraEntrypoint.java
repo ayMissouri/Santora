@@ -2,8 +2,10 @@ package dev.santora.compat;
 
 import dev.santora.Santora;
 import dev.santora.platform.SantoraPlatform;
+import dev.santora.ui.NowPlayingOverlay;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -13,6 +15,8 @@ public final class SantoraEntrypoint implements ClientModInitializer, SantoraPla
 	@Override
 	public void onInitializeClient() {
 		Santora.init(this);
+		HudElementRegistry.addLast(Santora.id("now_playing"),
+				(gfx, delta) -> NowPlayingOverlay.renderHud(new ExtractorCanvas(gfx)));
 	}
 
 	@Override

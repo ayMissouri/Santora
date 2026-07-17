@@ -75,7 +75,7 @@ public final class SantoraUi {
 	private boolean dragging;
 
 	private static final int SETTINGS_ROW_HEIGHT = 28;
-	private static final int SETTINGS_ROW_COUNT = 5;
+	private static final int SETTINGS_ROW_COUNT = 7;
 	private static final int SLIDER_WIDTH = 110;
 	private static final int VALUE_WIDTH = 46;
 
@@ -104,6 +104,13 @@ public final class SantoraUi {
 	private int winY;
 	private int winW;
 	private int winH;
+	private int screenW;
+	private int screenH;
+
+	private boolean movingOverlay;
+	private boolean overlayDragging;
+	private int overlayGrabDX;
+	private int overlayGrabDY;
 
 	private boolean closeFlag;
 
@@ -258,10 +265,17 @@ public final class SantoraUi {
 	}
 
 	public void render(SantoraCanvas canvas, int mouseX, int mouseY) {
+		screenW = canvas.width();
+		screenH = canvas.height();
 		winW = Math.min(canvas.width() - 20, MAX_WIDTH);
 		winH = Math.min(canvas.height() - 20, MAX_HEIGHT);
 		winX = (canvas.width() - winW) / 2;
 		winY = (canvas.height() - winH) / 2;
+
+		if (movingOverlay) {
+			renderOverlayMove(canvas, mouseX, mouseY);
+			return;
+		}
 
 		canvas.fill(0, 0, canvas.width(), canvas.height(), Theme.SCRIM);
 		canvas.fill(winX, winY, winX + winW, winY + winH, Theme.WINDOW);
@@ -608,7 +622,20 @@ public final class SantoraUi {
 		renderSwitchRow(canvas, 4, "Resume on launch", "Keep playing where you left off",
 				config.resumeOnLaunch(), mouseX, mouseY);
 
+		renderSwitchRow(canvas, 5, "Now playing overlay", "Show the current track in-game",
+				config.overlayOn(), mouseX, mouseY);
+
+		Rect move = overlayMoveRect();
+		renderSettingLabels(canvas, 6, "Overlay position", "Drag the card anywhere on screen",
+				move.x());
+		drawButton(canvas, mouseX, mouseY, move, "Move", false);
+
 		canvas.popScissor();
+	}
+
+	private Rect overlayMoveRect() {
+		Rect rowRect = settingsRowRect(6);
+		return new Rect(rowRect.right() - 40, rowRect.y() + (rowRect.h() - 14) / 2, 40, 14);
 	}
 
 	private void renderSettingLabels(SantoraCanvas canvas, int row, String label, String sub,
@@ -739,6 +766,14 @@ public final class SantoraUi {
 			config.setResumeOnLaunch(!config.resumeOnLaunch());
 			return;
 		}
+		if (settingsSwitchRect(5).contains(mouseX, mouseY, 2)) {
+			config.setOverlayOn(!config.overlayOn());
+			return;
+		}
+		if (overlayMoveRect().contains(mouseX, mouseY, 2)) {
+			movingOverlay = true;
+			return;
+		}
 
 		if (settingsSliderRect(1).contains(mouseX, mouseY, 3)) {
 			activeSlider = SLIDER_CROSSFADE;
@@ -769,6 +804,38 @@ public final class SantoraUi {
 
 	private static int snap(float value, int step) {
 		return Math.round(value / step) * step;
+	}
+
+	// Placing the now playing overlay
+	private Rect overlayCardRect() {
+		SantoraConfig config = engine.config();
+		return new Rect(NowPlayingOverlay.x(config, screenW), NowPlayingOverlay.y(config, screenH),
+				NowPlayingOverlay.WIDTH, NowPlayingOverlay.HEIGHT);
+	}
+
+	private Rect overlayDoneRect() {
+		return new Rect(screenW / 2 - 26, screenH - 34, 52, 16);
+	}
+
+	private void renderOverlayMove(SantoraCanvas canvas, int mouseX, int mouseY) {
+		canvas.fill(0, 0, screenW, screenH, 0x66050810);
+
+		canvas.textCentered("Drag the card where you want it", screenW / 2, 14, Theme.TEXT_PRIMARY);
+		canvas.textCentered("Esc or Done when you're happy", screenW / 2, 26, Theme.TEXT_MUTED);
+
+		Rect card = overlayCardRect();
+		NowPlayingOverlay.renderCard(canvas, card.x(), card.y(), true);
+		if (overlayDragging || card.contains(mouseX, mouseY)) {
+			canvas.outline(card.x() - 1, card.y() - 1, card.w() + 2, card.h() + 2, Theme.ACCENT);
+		}
+
+		drawButton(canvas, mouseX, mouseY, overlayDoneRect(), "Done", true);
+	}
+
+	private void exitOverlayMove() {
+		movingOverlay = false;
+		overlayDragging = false;
+		Santora.saveConfig();
 	}
 
 	// Song list
@@ -1112,6 +1179,18 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseClicked(int mouseX, int mouseY, int button) {
+		if (movingOverlay) {
+			Rect card = overlayCardRect();
+			if (button == 0 && card.contains(mouseX, mouseY)) {
+				overlayDragging = true;
+				overlayGrabDX = mouseX - card.x();
+				overlayGrabDY = mouseY - card.y();
+			} else if (button == 0 && overlayDoneRect().contains(mouseX, mouseY, 2)) {
+				exitOverlayMove();
+			}
+			return true;
+		}
+
 		if (naming) {
 			if (!namingRect().contains(mouseX, mouseY)) {
 				cancelNaming();
@@ -1515,6 +1594,13 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseDragged(int mouseX, int mouseY, int button) {
+		if (movingOverlay) {
+			if (overlayDragging) {
+				NowPlayingOverlay.position(engine.config(),
+						mouseX - overlayGrabDX, mouseY - overlayGrabDY, screenW, screenH);
+			}
+			return true;
+		}
 		if (button == 0 && activeSlider != SLIDER_NONE) {
 			applySlider(activeSlider, mouseX);
 			return true;
@@ -1533,6 +1619,10 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseReleased(int mouseX, int mouseY, int button) {
+		if (movingOverlay) {
+			overlayDragging = false;
+			return true;
+		}
 		if (button == 0 && activeSlider != SLIDER_NONE) {
 			activeSlider = SLIDER_NONE;
 			return true;
@@ -1618,7 +1708,7 @@ public final class SantoraUi {
 	}
 
 	public boolean mouseScrolled(int mouseX, int mouseY, double amount) {
-		if (naming) {
+		if (naming || movingOverlay) {
 			return true;
 		}
 		closeMenu();
@@ -1644,6 +1734,13 @@ public final class SantoraUi {
 	}
 
 	public boolean keyPressed(int keyCode) {
+		if (movingOverlay) {
+			if (keyCode == 256) { // escape
+				exitOverlayMove();
+			}
+			return true;
+		}
+
 		if (naming) {
 			switch (keyCode) {
 				case 257, 335 -> confirmNaming(); // enter
@@ -1701,6 +1798,9 @@ public final class SantoraUi {
 	}
 
 	public boolean charTyped(CharacterEvent event) {
+		if (movingOverlay) {
+			return true;
+		}
 		if (naming) {
 			if (event.isAllowedChatCharacter() && nameInput.length() < NAME_INPUT_MAX) {
 				nameInput.append(event.codepointAsString());
