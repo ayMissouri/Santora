@@ -10,4 +10,11 @@ public final class SantoraScreen extends SantoraScreenBase {
 		super.extractRenderState(gfx, mouseX, mouseY, partialTick);
 		draw(new ExtractorCanvas(gfx), mouseX, mouseY);
 	}
+
+	@Override
+	public void extractBackground(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float partialTick) {
+		if (wantsVanillaBackground()) {
+			super.extractBackground(gfx, mouseX, mouseY, partialTick);
+		}
+	}
 }

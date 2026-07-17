@@ -67,6 +67,38 @@ class SantoraConfigTest {
 	}
 
 	@Test
+	void appearanceValuesAreClamped() {
+		SantoraConfig config = new SantoraConfig();
+
+		config.setMenuOpacity(5);
+		assertEquals(SantoraConfig.MENU_OPACITY_MIN, config.menuOpacity());
+		config.setMenuOpacity(150);
+		assertEquals(100, config.menuOpacity());
+
+		config.setHudOpacity(-5);
+		assertEquals(0, config.hudOpacity());
+		config.setHudOpacity(150);
+		assertEquals(100, config.hudOpacity());
+
+		config.setMenuAccent(0xFF123456);
+		assertEquals(0x123456, config.menuAccent());
+		config.setHudBackground(0xFF0B0C10);
+		assertEquals(0x0B0C10, config.hudBackground());
+	}
+
+	@Test
+	void colorsRoundTripThroughHex() {
+		assertEquals("#E3A44C", SantoraConfig.formatColor(0xE3A44C));
+		assertEquals("#0B0C10", SantoraConfig.formatColor(0x0B0C10));
+
+		assertEquals(0xE3A44C, SantoraConfig.parseColor("#E3A44C", 0));
+		assertEquals(0xE3A44C, SantoraConfig.parseColor("e3a44c", 0));
+		assertEquals(0x111111, SantoraConfig.parseColor("nope", 0x111111));
+		assertEquals(0x111111, SantoraConfig.parseColor("#12345", 0x111111));
+		assertEquals(0x111111, SantoraConfig.parseColor(null, 0x111111));
+	}
+
+	@Test
 	void crossfadeNeedsBothTheToggleAndADuration() {
 		SantoraConfig config = new SantoraConfig();
 		assertTrue(config.crossfadeEnabled());

@@ -6,6 +6,7 @@ import dev.santora.config.ConfigIo;
 import dev.santora.config.PlaylistIo;
 import dev.santora.engine.MusicEngine;
 import dev.santora.platform.SantoraPlatform;
+import dev.santora.ui.Theme;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -32,6 +33,7 @@ public final class Santora {
 		SantoraPlatform.Holder.set(platform);
 		ConfigIo.load(MusicEngine.get().config());
 		PlaylistIo.load(MusicEngine.get().playlists());
+		Theme.refresh(MusicEngine.get().config());
 
 		// this is to support both game versions.
 		openKey = platform.registerKeyMapping(new KeyMapping(

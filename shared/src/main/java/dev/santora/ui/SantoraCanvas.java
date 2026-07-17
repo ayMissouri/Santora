@@ -30,5 +30,5 @@ public interface SantoraCanvas {
 
 	void popScissor();
 
-	void blit(Identifier texture, int x, int y, int w, int h);
+	void blit(Identifier texture, int x, int y, int w, int h, float u0, float u1, float v0, float v1);
 }

@@ -52,10 +52,15 @@ public final class NowPlayingOverlay {
 	
 	public static void renderCard(SantoraCanvas canvas, int x, int y, boolean opaque) {
 		MusicEngine engine = MusicEngine.get();
+		SantoraConfig config = engine.config();
 		Track track = engine.currentTrack();
 
-		canvas.fill(x, y, x + WIDTH, y + HEIGHT, opaque ? 0xFF141926 : 0xE6141926);
-		canvas.outline(x, y, WIDTH, HEIGHT, opaque ? Theme.FRAME : 0xCC39425C);
+		int cardBase = 0xFF000000 | config.hudBackground();
+		int alpha = opaque ? 255 : 255 * config.hudOpacity() / 100;
+
+		canvas.fill(x, y, x + WIDTH, y + HEIGHT, Theme.argb(alpha, cardBase));
+		canvas.outline(x, y, WIDTH, HEIGHT,
+				Theme.argb(alpha, Theme.blend(cardBase, 0xFFFFFFFF, 0.17f)));
 
 		int artX = x + 6;
 		int artY = y + 6;
@@ -65,7 +70,8 @@ public final class NowPlayingOverlay {
 					base, Theme.blend(base, 0xFF000000, 0.45f));
 			drawStateIcon(canvas, engine, artX, artY);
 		} else {
-			canvas.fill(artX, artY, artX + ART_SIZE, artY + ART_SIZE, 0xFF1B2130);
+			canvas.fill(artX, artY, artX + ART_SIZE, artY + ART_SIZE,
+					Theme.argb(alpha, Theme.blend(cardBase, 0xFFFFFFFF, 0.03f)));
 		}
 
 		int textX = artX + ART_SIZE + 6;
@@ -79,7 +85,7 @@ public final class NowPlayingOverlay {
 		canvas.text(canvas.ellipsize(title, textMax), textX, y + 9, Theme.TEXT_PRIMARY, false);
 		canvas.text(canvas.ellipsize(sub, textMax), textX, y + 20, Theme.TEXT_SECONDARY, false);
 
-		renderProgress(canvas, engine, track, x, y);
+		renderProgress(canvas, engine, track, x, y, cardBase, alpha);
 	}
 
 	private static void drawStateIcon(SantoraCanvas canvas, MusicEngine engine, int artX, int artY) {
@@ -102,9 +108,10 @@ public final class NowPlayingOverlay {
 	}
 
 	private static void renderProgress(SantoraCanvas canvas, MusicEngine engine, Track track,
-			int x, int y) {
+			int x, int y, int cardBase, int alpha) {
 		int stripY = y + HEIGHT - 4;
-		canvas.fill(x + 1, stripY, x + WIDTH - 1, stripY + 3, Theme.PROGRESS_TRACK);
+		canvas.fill(x + 1, stripY, x + WIDTH - 1, stripY + 3,
+				Theme.argb(alpha, Theme.blend(cardBase, 0xFFFFFFFF, 0.11f)));
 
 		if (track == null) {
 			return;
@@ -113,7 +120,8 @@ public final class NowPlayingOverlay {
 		if (duration.isPresent() && duration.getAsDouble() > 0) {
 			float pct = (float) (engine.elapsedMillis() / (duration.getAsDouble() * 1000.0));
 			pct = pct < 0 ? 0 : (pct > 1 ? 1 : pct);
-			canvas.fill(x + 1, stripY, x + 1 + (int) ((WIDTH - 2) * pct), stripY + 3, Theme.ACCENT);
+			canvas.fill(x + 1, stripY, x + 1 + (int) ((WIDTH - 2) * pct), stripY + 3,
+					0xFF000000 | engine.config().hudAccent());
 		}
 	}
 }

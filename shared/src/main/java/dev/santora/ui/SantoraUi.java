@@ -13,11 +13,15 @@ import dev.santora.engine.MusicEngine;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 
 public final class SantoraUi {
@@ -27,9 +31,12 @@ public final class SantoraUi {
 
 	private final MusicEngine engine = MusicEngine.get();
 
-	private static final Identifier ABSENT = Identifier.fromNamespaceAndPath("santora", "absent");
+	private record ArtRef(Identifier texture, float u0, float u1, float v0, float v1) {
+	}
 
-	private final Map<String, Identifier> artCache = new HashMap<>();
+	private static final ArtRef ABSENT = new ArtRef(null, 0, 0, 0, 0);
+
+	private final Map<String, ArtRef> artCache = new HashMap<>();
 
 	private enum View {
 		SEARCH("Search"),
@@ -75,15 +82,61 @@ public final class SantoraUi {
 	private boolean dragging;
 
 	private static final int SETTINGS_ROW_HEIGHT = 28;
-	private static final int SETTINGS_ROW_COUNT = 7;
 	private static final int SLIDER_WIDTH = 110;
 	private static final int VALUE_WIDTH = 46;
+
+	private static final int ROW_PLAYBACK_HEADER = 0;
+	private static final int ROW_CROSSFADE = 1;
+	private static final int ROW_FADE = 2;
+	private static final int ROW_DELAY = 3;
+	private static final int ROW_VOLUME = 4;
+	private static final int ROW_RESUME = 5;
+	private static final int ROW_MENU_HEADER = 6;
+	private static final int ROW_MENU_BG = 7;
+	private static final int ROW_MENU_ACCENT = 8;
+	private static final int ROW_MENU_OPACITY = 9;
+	private static final int ROW_HUD_HEADER = 10;
+	private static final int ROW_HUD_ON = 11;
+	private static final int ROW_HUD_POS = 12;
+	private static final int ROW_HUD_BG = 13;
+	private static final int ROW_HUD_ACCENT = 14;
+	private static final int ROW_HUD_OPACITY = 15;
+	private static final int SETTINGS_ROW_COUNT = 16;
 
 	private static final int SLIDER_NONE = 0;
 	private static final int SLIDER_CROSSFADE = 1;
 	private static final int SLIDER_DELAY_MIN = 2;
 	private static final int SLIDER_DELAY_MAX = 3;
 	private static final int SLIDER_VOLUME = 4;
+	private static final int SLIDER_MENU_OPACITY = 5;
+	private static final int SLIDER_HUD_OPACITY = 6;
+	private static final int SLIDER_DECK_VOLUME = 7;
+
+	private static final int DECK_VOLUME_WIDTH = 45;
+
+	private static final int SWATCH_SIZE = 12;
+	private static final int SWATCH_GAP = 4;
+
+	private static final int[] BACKGROUND_CHOICES = {
+			0x141926, // midnight (default)
+			0x17181C, // charcoal
+			0x0B0C10, // black
+			0x0F1B2E, // ocean
+			0x122019, // pine
+			0x1D1426, // plum
+			0x241318, // wine
+	};
+
+	private static final int[] ACCENT_CHOICES = {
+			0xE3A44C, // amber (default)
+			0xE06A4D, // ember
+			0xE06C8A, // rose
+			0xA47CE8, // violet
+			0x58A6E8, // sky
+			0x4FC4B7, // teal
+			0x53C487, // emerald
+			0xC9CFDA, // silver
+	};
 
 	private int activeSlider = SLIDER_NONE;
 
@@ -173,24 +226,30 @@ public final class SantoraUi {
 		return Math.max(2, (usable + Theme.GRID_GAP) / (Theme.TILE_TARGET_WIDTH + Theme.GRID_GAP));
 	}
 
+	private int tileWidth() {
+		int cols = gridCols();
+		int usable = mainRect().w() - Theme.PADDING * 2;
+		return (usable - (cols - 1) * Theme.GRID_GAP) / cols;
+	}
+
 	private Rect tileRect(int index) {
 		Rect main = mainRect();
 		int cols = gridCols();
-		int usable = main.w() - Theme.PADDING * 2;
-		int tileW = (usable - (cols - 1) * Theme.GRID_GAP) / cols;
+		int tileW = tileWidth();
+		int tileH = tileW + Theme.TILE_TEXT_HEIGHT;
 		int col = index % cols;
 		int row = index / cols;
 		return new Rect(
 				main.x() + Theme.PADDING + col * (tileW + Theme.GRID_GAP),
-				main.y() + Theme.PADDING + row * (Theme.TILE_HEIGHT + Theme.GRID_GAP) - gridScroll,
-				tileW, Theme.TILE_HEIGHT);
+				main.y() + Theme.PADDING + row * (tileH + Theme.GRID_GAP) - gridScroll,
+				tileW, tileH);
 	}
 
 	private int gridContentHeight(int count) {
 		int cols = gridCols();
 		int rows = (count + cols - 1) / cols;
 		return rows == 0 ? 0
-				: Theme.PADDING * 2 + rows * Theme.TILE_HEIGHT + (rows - 1) * Theme.GRID_GAP;
+				: Theme.PADDING * 2 + rows * (tileWidth() + Theme.TILE_TEXT_HEIGHT) + (rows - 1) * Theme.GRID_GAP;
 	}
 
 	private Rect backRect() {
@@ -262,6 +321,16 @@ public final class SantoraUi {
 	private Rect deckShuffleRect() {
 		Rect repeat = deckRepeatRect();
 		return new Rect(repeat.x() - 10 - 11, deckCenterY() - 5, 11, 10);
+	}
+
+	private Rect deckVolumeRect() {
+		Rect shuffle = deckShuffleRect();
+		return new Rect(shuffle.x() - 10 - DECK_VOLUME_WIDTH, deckCenterY() - 4,
+				DECK_VOLUME_WIDTH, 9);
+	}
+
+	private int deckTimeRight() {
+		return deckVolumeRect().x() - 18;
 	}
 
 	public void render(SantoraCanvas canvas, int mouseX, int mouseY) {
@@ -472,18 +541,18 @@ public final class SantoraUi {
 			Album album = albums.get(i);
 			boolean hover = tile.contains(mouseX, mouseY) && main.contains(mouseX, mouseY);
 
-			drawAlbumArt(canvas, album, tile.x(), tile.y(), tile.w(), Theme.TILE_ART_HEIGHT);
+			drawAlbumArt(canvas, album, tile.x(), tile.y(), tile.w(), tile.w());
 			if (hover) {
-				canvas.fill(tile.x(), tile.y(), tile.right(), tile.y() + Theme.TILE_ART_HEIGHT,
+				canvas.fill(tile.x(), tile.y(), tile.right(), tile.y() + tile.w(),
 						Theme.ROW_HOVER);
-				canvas.outline(tile.x(), tile.y(), tile.w(), Theme.TILE_ART_HEIGHT, Theme.ACCENT);
+				canvas.outline(tile.x(), tile.y(), tile.w(), tile.w(), Theme.ACCENT);
 			}
 
 			canvas.text(canvas.ellipsize(album.title(), tile.w() - 2),
-					tile.x() + 1, tile.y() + Theme.TILE_ART_HEIGHT + 4,
+					tile.x() + 1, tile.y() + tile.w() + 4,
 					hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
 			canvas.text(album.trackCount() + (album.trackCount() == 1 ? " track" : " tracks"),
-					tile.x() + 1, tile.y() + Theme.TILE_ART_HEIGHT + 14, Theme.TEXT_MUTED, false);
+					tile.x() + 1, tile.y() + tile.w() + 14, Theme.TEXT_MUTED, false);
 		}
 		if (view == View.PLAYLISTS) {
 			renderNewPlaylistTile(canvas, albums.size(), mouseX, mouseY);
@@ -499,13 +568,13 @@ public final class SantoraUi {
 		}
 		boolean hover = tile.contains(mouseX, mouseY) && main.contains(mouseX, mouseY);
 
-		canvas.fill(tile.x(), tile.y(), tile.right(), tile.y() + Theme.TILE_ART_HEIGHT, 0xFF10141F);
-		canvas.outline(tile.x(), tile.y(), tile.w(), Theme.TILE_ART_HEIGHT,
+		canvas.fill(tile.x(), tile.y(), tile.right(), tile.y() + tile.w(), Theme.INPUT_BG);
+		canvas.outline(tile.x(), tile.y(), tile.w(), tile.w(),
 				hover ? Theme.ACCENT : Theme.DIVIDER);
 		canvas.textCentered("+", tile.x() + tile.w() / 2,
-				tile.y() + Theme.TILE_ART_HEIGHT / 2 - canvas.lineHeight() / 2,
+				tile.y() + tile.w() / 2 - canvas.lineHeight() / 2,
 				hover ? Theme.ACCENT : Theme.TEXT_SECONDARY);
-		canvas.text("New Playlist", tile.x() + 1, tile.y() + Theme.TILE_ART_HEIGHT + 4,
+		canvas.text("New Playlist", tile.x() + 1, tile.y() + tile.w() + 4,
 				hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
 	}
 
@@ -535,7 +604,7 @@ public final class SantoraUi {
 
 	private void renderSearchField(SantoraCanvas canvas) {
 		Rect field = searchFieldRect();
-		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), 0xFF0C0F17);
+		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), Theme.INPUT_BG);
 		canvas.outline(field.x(), field.y(), field.w(), field.h(), Theme.DIVIDER);
 
 		int textY = field.y() + (field.h() - canvas.lineHeight()) / 2 + 1;
@@ -605,36 +674,104 @@ public final class SantoraUi {
 		canvas.text("Settings", main.x() + Theme.PADDING, main.y() + 7 - settingsScroll,
 				Theme.TEXT_PRIMARY, false);
 
-		renderSwitchRow(canvas, 0, "Crossfade", "Blend each track into the next",
+		renderSettingsHeader(canvas, ROW_PLAYBACK_HEADER, "PLAYBACK");
+
+		renderSwitchRow(canvas, ROW_CROSSFADE, "Crossfade", "Blend each track into the next",
 				config.crossfadeOn(), mouseX, mouseY);
 
-		renderSliderRow(canvas, 1, "Fade duration", "How long the blend lasts",
+		renderSliderRow(canvas, ROW_FADE, "Fade duration", "How long the blend lasts",
 				config.crossfadeMillis() / (float) SantoraConfig.CROSSFADE_MAX_MILLIS,
 				formatSeconds(config.crossfadeMillis()),
 				!config.crossfadeOn(), SLIDER_CROSSFADE, mouseX, mouseY);
 
-		renderDelayRow(canvas, 2, mouseX, mouseY);
+		renderDelayRow(canvas, ROW_DELAY, mouseX, mouseY);
 
-		renderSliderRow(canvas, 3, "Volume", "Only affects Santora's playback",
+		renderSliderRow(canvas, ROW_VOLUME, "Volume", "Only affects Santora's playback",
 				config.volume(), Math.round(config.volume() * 100) + "%",
 				false, SLIDER_VOLUME, mouseX, mouseY);
 
-		renderSwitchRow(canvas, 4, "Resume on launch", "Keep playing where you left off",
+		renderSwitchRow(canvas, ROW_RESUME, "Resume on launch", "Keep playing where you left off",
 				config.resumeOnLaunch(), mouseX, mouseY);
 
-		renderSwitchRow(canvas, 5, "Now playing overlay", "Show the current track in-game",
+		renderSettingsHeader(canvas, ROW_MENU_HEADER, "MENU LOOK");
+
+		renderSwatchRow(canvas, ROW_MENU_BG, "Background", "Base color of this window",
+				BACKGROUND_CHOICES, config.menuBackground(), mouseX, mouseY);
+
+		renderSwatchRow(canvas, ROW_MENU_ACCENT, "Accent", "Highlights, buttons and progress",
+				ACCENT_CHOICES, config.menuAccent(), mouseX, mouseY);
+
+		renderSliderRow(canvas, ROW_MENU_OPACITY, "Background opacity", "Let the game show through",
+				(config.menuOpacity() - SantoraConfig.MENU_OPACITY_MIN)
+						/ (float) (100 - SantoraConfig.MENU_OPACITY_MIN),
+				config.menuOpacity() + "%", false, SLIDER_MENU_OPACITY, mouseX, mouseY);
+
+		renderSettingsHeader(canvas, ROW_HUD_HEADER, "NOW PLAYING HUD");
+
+		renderSwitchRow(canvas, ROW_HUD_ON, "Show HUD", "Show the current track in-game",
 				config.overlayOn(), mouseX, mouseY);
 
 		Rect move = overlayMoveRect();
-		renderSettingLabels(canvas, 6, "Overlay position", "Drag the card anywhere on screen",
+		renderSettingLabels(canvas, ROW_HUD_POS, "Position", "Drag the card anywhere on screen",
 				move.x());
 		drawButton(canvas, mouseX, mouseY, move, "Move", false);
+
+		renderSwatchRow(canvas, ROW_HUD_BG, "Background", "Base color of the card",
+				BACKGROUND_CHOICES, config.hudBackground(), mouseX, mouseY);
+
+		renderSwatchRow(canvas, ROW_HUD_ACCENT, "Accent", "Color of the progress bar",
+				ACCENT_CHOICES, config.hudAccent(), mouseX, mouseY);
+
+		renderSliderRow(canvas, ROW_HUD_OPACITY, "Background opacity", "0% leaves just text and art",
+				config.hudOpacity() / 100f, config.hudOpacity() + "%",
+				false, SLIDER_HUD_OPACITY, mouseX, mouseY);
 
 		canvas.popScissor();
 	}
 
+	private void renderSettingsHeader(SantoraCanvas canvas, int row, String label) {
+		Rect rowRect = settingsRowRect(row);
+		canvas.text(label, rowRect.x(), rowRect.bottom() - canvas.lineHeight() - 3,
+				Theme.ACCENT, false);
+		canvas.fill(rowRect.x(), rowRect.bottom() - 1, rowRect.right(), rowRect.bottom(),
+				Theme.DIVIDER);
+	}
+
+	private Rect swatchRect(int row, int count, int index) {
+		Rect rowRect = settingsRowRect(row);
+		int width = count * SWATCH_SIZE + (count - 1) * SWATCH_GAP;
+		return new Rect(rowRect.right() - width + index * (SWATCH_SIZE + SWATCH_GAP),
+				rowRect.y() + (rowRect.h() - SWATCH_SIZE) / 2, SWATCH_SIZE, SWATCH_SIZE);
+	}
+
+	private void renderSwatchRow(SantoraCanvas canvas, int row, String label, String sub,
+			int[] choices, int selected, int mouseX, int mouseY) {
+		renderSettingLabels(canvas, row, label, sub, swatchRect(row, choices.length, 0).x());
+
+		for (int i = 0; i < choices.length; i++) {
+			Rect swatch = swatchRect(row, choices.length, i);
+			canvas.fill(swatch.x(), swatch.y(), swatch.right(), swatch.bottom(),
+					0xFF000000 | choices[i]);
+			if (choices[i] == selected) {
+				canvas.outline(swatch.x() - 1, swatch.y() - 1, swatch.w() + 2, swatch.h() + 2,
+						Theme.TEXT_PRIMARY);
+			} else if (swatch.contains(mouseX, mouseY, 1)) {
+				canvas.outline(swatch.x(), swatch.y(), swatch.w(), swatch.h(), Theme.TEXT_SECONDARY);
+			}
+		}
+	}
+
+	private int pickSwatch(int row, int[] choices, int mouseX, int mouseY) {
+		for (int i = 0; i < choices.length; i++) {
+			if (swatchRect(row, choices.length, i).contains(mouseX, mouseY, 1)) {
+				return choices[i];
+			}
+		}
+		return -1;
+	}
+
 	private Rect overlayMoveRect() {
-		Rect rowRect = settingsRowRect(6);
+		Rect rowRect = settingsRowRect(ROW_HUD_POS);
 		return new Rect(rowRect.right() - 40, rowRect.y() + (rowRect.h() - 14) / 2, 40, 14);
 	}
 
@@ -758,15 +895,15 @@ public final class SantoraUi {
 	private void clickSettings(int mouseX, int mouseY) {
 		SantoraConfig config = engine.config();
 
-		if (settingsSwitchRect(0).contains(mouseX, mouseY, 2)) {
+		if (settingsSwitchRect(ROW_CROSSFADE).contains(mouseX, mouseY, 2)) {
 			config.setCrossfadeOn(!config.crossfadeOn());
 			return;
 		}
-		if (settingsSwitchRect(4).contains(mouseX, mouseY, 2)) {
+		if (settingsSwitchRect(ROW_RESUME).contains(mouseX, mouseY, 2)) {
 			config.setResumeOnLaunch(!config.resumeOnLaunch());
 			return;
 		}
-		if (settingsSwitchRect(5).contains(mouseX, mouseY, 2)) {
+		if (settingsSwitchRect(ROW_HUD_ON).contains(mouseX, mouseY, 2)) {
 			config.setOverlayOn(!config.overlayOn());
 			return;
 		}
@@ -774,30 +911,78 @@ public final class SantoraUi {
 			movingOverlay = true;
 			return;
 		}
+		if (clickSwatches(mouseX, mouseY)) {
+			return;
+		}
 
-		if (settingsSliderRect(1).contains(mouseX, mouseY, 3)) {
+		if (settingsSliderRect(ROW_FADE).contains(mouseX, mouseY, 3)) {
 			activeSlider = SLIDER_CROSSFADE;
-		} else if (settingsSliderRect(2).contains(mouseX, mouseY, 3)) {
-			activeSlider = pickDelayHandle(settingsSliderRect(2), mouseX);
-		} else if (settingsSliderRect(3).contains(mouseX, mouseY, 3)) {
+		} else if (settingsSliderRect(ROW_DELAY).contains(mouseX, mouseY, 3)) {
+			activeSlider = pickDelayHandle(settingsSliderRect(ROW_DELAY), mouseX);
+		} else if (settingsSliderRect(ROW_VOLUME).contains(mouseX, mouseY, 3)) {
 			activeSlider = SLIDER_VOLUME;
+		} else if (settingsSliderRect(ROW_MENU_OPACITY).contains(mouseX, mouseY, 3)) {
+			activeSlider = SLIDER_MENU_OPACITY;
+		} else if (settingsSliderRect(ROW_HUD_OPACITY).contains(mouseX, mouseY, 3)) {
+			activeSlider = SLIDER_HUD_OPACITY;
 		} else {
 			return;
 		}
 		applySlider(activeSlider, mouseX);
 	}
 
+	private boolean clickSwatches(int mouseX, int mouseY) {
+		SantoraConfig config = engine.config();
+
+		int color = pickSwatch(ROW_MENU_BG, BACKGROUND_CHOICES, mouseX, mouseY);
+		if (color >= 0) {
+			config.setMenuBackground(color);
+			Theme.refresh(config);
+			return true;
+		}
+		color = pickSwatch(ROW_MENU_ACCENT, ACCENT_CHOICES, mouseX, mouseY);
+		if (color >= 0) {
+			config.setMenuAccent(color);
+			Theme.refresh(config);
+			return true;
+		}
+		color = pickSwatch(ROW_HUD_BG, BACKGROUND_CHOICES, mouseX, mouseY);
+		if (color >= 0) {
+			config.setHudBackground(color);
+			return true;
+		}
+		color = pickSwatch(ROW_HUD_ACCENT, ACCENT_CHOICES, mouseX, mouseY);
+		if (color >= 0) {
+			config.setHudAccent(color);
+			return true;
+		}
+		return false;
+	}
+
 	private void applySlider(int slider, int mouseX) {
 		SantoraConfig config = engine.config();
 		switch (slider) {
 			case SLIDER_CROSSFADE -> config.setCrossfadeMillis(snap(
-					sliderT(settingsSliderRect(1), mouseX) * SantoraConfig.CROSSFADE_MAX_MILLIS, 500));
+					sliderT(settingsSliderRect(ROW_FADE), mouseX)
+							* SantoraConfig.CROSSFADE_MAX_MILLIS, 500));
 			case SLIDER_DELAY_MIN -> config.setDelayMinMillis(snap(
-					sliderT(settingsSliderRect(2), mouseX) * SantoraConfig.DELAY_MAX_MILLIS, 5_000));
+					sliderT(settingsSliderRect(ROW_DELAY), mouseX)
+							* SantoraConfig.DELAY_MAX_MILLIS, 5_000));
 			case SLIDER_DELAY_MAX -> config.setDelayMaxMillis(snap(
-					sliderT(settingsSliderRect(2), mouseX) * SantoraConfig.DELAY_MAX_MILLIS, 5_000));
+					sliderT(settingsSliderRect(ROW_DELAY), mouseX)
+							* SantoraConfig.DELAY_MAX_MILLIS, 5_000));
 			case SLIDER_VOLUME -> engine.setVolume(
-					snap(sliderT(settingsSliderRect(3), mouseX) * 100, 5) / 100f);
+					snap(sliderT(settingsSliderRect(ROW_VOLUME), mouseX) * 100, 5) / 100f);
+			case SLIDER_MENU_OPACITY -> {
+				int span = 100 - SantoraConfig.MENU_OPACITY_MIN;
+				config.setMenuOpacity(snap(SantoraConfig.MENU_OPACITY_MIN
+						+ sliderT(settingsSliderRect(ROW_MENU_OPACITY), mouseX) * span, 5));
+				Theme.refresh(config);
+			}
+			case SLIDER_HUD_OPACITY -> config.setHudOpacity(snap(
+					sliderT(settingsSliderRect(ROW_HUD_OPACITY), mouseX) * 100, 5));
+			case SLIDER_DECK_VOLUME -> engine.setVolume(
+					snap(sliderT(deckVolumeRect(), mouseX) * 100, 5) / 100f);
 			default -> { }
 		}
 	}
@@ -945,15 +1130,16 @@ public final class SantoraUi {
 	// Album art
 	private void drawAlbumArt(SantoraCanvas canvas, Album album, int x, int y, int w, int h) {
 		if (album == null) {
-			canvas.fill(x, y, x + w, y + h, 0xFF1B2130);
+			canvas.fill(x, y, x + w, y + h, Theme.EMPTY_ART);
 			return;
 		}
 
-		Identifier art = artTexture(album);
+		ArtRef art = artTexture(album);
 		if (art != null) {
 			int size = Math.min(w, h);
-			canvas.fill(x, y, x + w, y + h, 0xFF0C0F17);
-			canvas.blit(art, x + (w - size) / 2, y + (h - size) / 2, size, size);
+			canvas.fill(x, y, x + w, y + h, Theme.INPUT_BG);
+			canvas.blit(art.texture(), x + (w - size) / 2, y + (h - size) / 2, size, size,
+					art.u0(), art.u1(), art.v0(), art.v1());
 			return;
 		}
 
@@ -973,18 +1159,41 @@ public final class SantoraUi {
 		canvas.textCentered(initials, x + w / 2, y + h / 2 - canvas.lineHeight() / 2, 0x66FFFFFF);
 	}
 
-	private Identifier artTexture(Album album) {
+	private ArtRef artTexture(Album album) {
 		if (album.artKey() == null) {
 			return null;
 		}
-		Identifier cached = artCache.computeIfAbsent(album.id(), id -> {
+		ArtRef cached = artCache.computeIfAbsent(album.id(), id -> {
 			Identifier tex = Identifier.tryParse(album.artKey());
 			if (tex == null) {
 				return ABSENT;
 			}
-			return Minecraft.getInstance().getResourceManager().getResource(tex).isPresent() ? tex : ABSENT;
+			Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(tex);
+			if (resource.isEmpty()) {
+				return ABSENT;
+			}
+			float aspect = pngAspect(resource.get());
+			float uSpan = aspect > 1 ? 1f / aspect : 1f;
+			float vSpan = aspect < 1 ? aspect : 1f;
+			float u0 = (1f - uSpan) / 2f;
+			float v0 = (1f - vSpan) / 2f;
+			return new ArtRef(tex, u0, u0 + uSpan, v0, v0 + vSpan);
 		});
 		return cached == ABSENT ? null : cached;
+	}
+
+	private static float pngAspect(Resource resource) {
+		try (InputStream in = resource.open()) {
+			byte[] head = in.readNBytes(24);
+			if (head.length < 24 || head[12] != 'I' || head[13] != 'H' || head[14] != 'D' || head[15] != 'R') {
+				return 1f;
+			}
+			int wPx = ((head[16] & 0xFF) << 24) | ((head[17] & 0xFF) << 16) | ((head[18] & 0xFF) << 8) | (head[19] & 0xFF);
+			int hPx = ((head[20] & 0xFF) << 24) | ((head[21] & 0xFF) << 16) | ((head[22] & 0xFF) << 8) | (head[23] & 0xFF);
+			return wPx > 0 && hPx > 0 ? (float) wPx / hPx : 1f;
+		} catch (IOException e) {
+			return 1f;
+		}
 	}
 
 	private MusicContext contextOf(Album album) {
@@ -1012,11 +1221,11 @@ public final class SantoraUi {
 			canvas.fillGradient(deck.x() + 8, artY, deck.x() + 8 + artSize, artY + artSize,
 					base, Theme.blend(base, 0xFF000000, 0.45f));
 		} else {
-			canvas.fill(deck.x() + 8, artY, deck.x() + 8 + artSize, artY + artSize, 0xFF1B2130);
+			canvas.fill(deck.x() + 8, artY, deck.x() + 8 + artSize, artY + artSize, Theme.EMPTY_ART);
 		}
 
 		int textX = deck.x() + 8 + artSize + 6;
-		int textMax = Math.max(40, deckShuffleRect().x() - 64 - textX);
+		int textMax = Math.max(40, deckTimeRight() - 68 - textX);
 		long waiting = engine.delayRemainingMillis();
 		String title = track != null ? canvas.ellipsize(track.title(), textMax)
 				: waiting >= 0 ? "Next track in " + (waiting + 999) / 1000 + "s"
@@ -1059,14 +1268,39 @@ public final class SantoraUi {
 		drawShuffleIcon(canvas, shuffle.x(), cy,
 				toggleColor(shuffle, mouseX, mouseY, engine.queue().shuffle()));
 
+		renderDeckVolume(canvas, cy, mouseX, mouseY);
+
 		if (track != null) {
 			OptionalDouble duration = engine.durationSeconds(track);
 			String total = duration.isPresent()
 					? Theme.formatTime((long) (duration.getAsDouble() * 1000))
 					: "--:--";
 			String time = Theme.formatTime(engine.elapsedMillis()) + " / " + total;
-			canvas.text(time, deckShuffleRect().x() - 8 - canvas.textWidth(time), cy - 4,
+			canvas.text(time, deckTimeRight() - canvas.textWidth(time), cy - 4,
 					Theme.TEXT_MUTED, false);
+		}
+	}
+
+	private void renderDeckVolume(SantoraCanvas canvas, int cy, int mouseX, int mouseY) {
+		Rect vol = deckVolumeRect();
+		float volume = engine.config().volume();
+
+		drawSpeakerIcon(canvas, vol.x() - 12, cy,
+				volume == 0f ? Theme.TEXT_MUTED : Theme.TEXT_SECONDARY);
+
+		canvas.fill(vol.x(), cy - 1, vol.right(), cy + 1, Theme.PROGRESS_TRACK);
+		int handleX = handleX(vol, volume);
+		canvas.fill(vol.x(), cy - 1, handleX, cy + 1, Theme.ACCENT);
+		boolean hover = activeSlider == SLIDER_DECK_VOLUME
+				|| (activeSlider == SLIDER_NONE && vol.contains(mouseX, mouseY, 3));
+		canvas.fill(handleX, vol.y(), handleX + 3, vol.bottom(),
+				hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY);
+	}
+
+	private void drawSpeakerIcon(SantoraCanvas canvas, int x, int cy, int color) {
+		canvas.fill(x, cy - 2, x + 2, cy + 3, color);
+		for (int i = 0; i < 3; i++) {
+			canvas.fill(x + 2 + i, cy - 2 - i, x + 3 + i, cy + 3 + i, color);
 		}
 	}
 
@@ -1090,7 +1324,10 @@ public final class SantoraUi {
 		if (menuItems != null || naming) {
 			return;
 		}
-		if (deckShuffleRect().contains(mouseX, mouseY, 2)) {
+		if (deckVolumeRect().contains(mouseX, mouseY, 3)) {
+			drawTooltip(canvas, "Volume " + Math.round(engine.config().volume() * 100) + "%",
+					deckVolumeRect());
+		} else if (deckShuffleRect().contains(mouseX, mouseY, 2)) {
 			drawTooltip(canvas, "Shuffle", deckShuffleRect());
 		} else if (deckRepeatRect().contains(mouseX, mouseY, 2)) {
 			String label = switch (engine.queue().repeat()) {
@@ -1447,7 +1684,7 @@ public final class SantoraUi {
 		canvas.text("New playlist", box.x() + 8, box.y() + 7, Theme.TEXT_PRIMARY, false);
 
 		Rect field = new Rect(box.x() + 8, box.y() + 19, box.w() - 16, 14);
-		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), 0xFF0C0F17);
+		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), Theme.INPUT_BG);
 		canvas.outline(field.x(), field.y(), field.w(), field.h(), Theme.DIVIDER);
 
 		boolean caret = System.currentTimeMillis() / 400 % 2 == 0;
@@ -1693,7 +1930,10 @@ public final class SantoraUi {
 		if (!deckRect().contains(mouseX, mouseY)) {
 			return false;
 		}
-		if (deckPrevRect().contains(mouseX, mouseY, 3)) {
+		if (deckVolumeRect().contains(mouseX, mouseY, 3)) {
+			activeSlider = SLIDER_DECK_VOLUME;
+			applySlider(activeSlider, mouseX);
+		} else if (deckPrevRect().contains(mouseX, mouseY, 3)) {
 			engine.previous();
 		} else if (deckPlayRect().contains(mouseX, mouseY, 2)) {
 			engine.togglePlayPause();

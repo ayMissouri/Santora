@@ -10,4 +10,11 @@ public final class SantoraScreen extends SantoraScreenBase {
 		super.render(gfx, mouseX, mouseY, partialTick);
 		draw(new GuiGraphicsCanvas(gfx), mouseX, mouseY);
 	}
+
+	@Override
+	public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
+		if (wantsVanillaBackground()) {
+			super.renderBackground(gfx, mouseX, mouseY, partialTick);
+		}
+	}
 }

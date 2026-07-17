@@ -1,5 +1,6 @@
 package dev.santora.ui;
 
+import dev.santora.core.config.SantoraConfig;
 import dev.santora.core.model.MusicContext;
 
 public final class Theme {
@@ -7,26 +8,55 @@ public final class Theme {
 	private Theme() {
 	}
 
-	public static final int SCRIM = 0xC8050810;
-	public static final int WINDOW = 0xFF141926;
-	public static final int RAIL = 0xFF0F131E;
-	public static final int TOP_BAR = 0xFF0F131E;
-	public static final int DECK = 0xFF1A2133;
-	public static final int DIVIDER = 0xFF2A3247;
-	public static final int FRAME = 0xFF39425C;
+	public static int SCRIM = 0xC8050810;
+	public static int WINDOW = 0xFF141926;
+	public static int RAIL = 0xFF0F131E;
+	public static int TOP_BAR = 0xFF0F131E;
+	public static int DECK = 0xFF1A2133;
+	public static int DIVIDER = 0xFF2A3247;
+	public static int FRAME = 0xFF39425C;
+	public static int INPUT_BG = 0xFF0C0F17;
+	public static int EMPTY_ART = 0xFF1B2130;
 
 	public static final int ROW_HOVER = 0x14FFFFFF;
 	public static final int ROW_SELECTED = 0x26FFFFFF;
-	public static final int MENU_SELECTED = 0x26E3A44C;
+	public static int MENU_SELECTED = 0x26E3A44C;
 
 	public static final int TEXT_PRIMARY = 0xFFF4F0E6;
 	public static final int TEXT_SECONDARY = 0xFFA8B0C0;
 	public static final int TEXT_MUTED = 0xFF667080;
 
-	public static final int ACCENT = 0xFFE3A44C;
-	public static final int ACCENT_DIM = 0xFF9C6F26;
-	public static final int ON_ACCENT = 0xFF221708;
-	public static final int PROGRESS_TRACK = 0xFF2C3448;
+	public static int ACCENT = 0xFFE3A44C;
+	public static int ACCENT_DIM = 0xFF9C6F26;
+	public static int ON_ACCENT = 0xFF221708;
+	public static int PROGRESS_TRACK = 0xFF2C3448;
+
+	public static void refresh(SantoraConfig config) {
+		int base = 0xFF000000 | config.menuBackground();
+		int accent = 0xFF000000 | config.menuAccent();
+		int alpha = 255 * config.menuOpacity() / 100;
+
+		SCRIM = argb(0xC8 * config.menuOpacity() / 100, blend(base, 0xFF000000, 0.72f));
+		WINDOW = argb(alpha, base);
+		RAIL = argb(alpha, blend(base, 0xFF000000, 0.25f));
+		TOP_BAR = RAIL;
+		DECK = argb(alpha, blend(base, 0xFFFFFFFF, 0.04f));
+		DIVIDER = blend(base, 0xFFFFFFFF, 0.10f);
+		FRAME = blend(base, 0xFFFFFFFF, 0.17f);
+		INPUT_BG = blend(base, 0xFF000000, 0.40f);
+		EMPTY_ART = blend(base, 0xFFFFFFFF, 0.03f);
+		PROGRESS_TRACK = blend(base, 0xFFFFFFFF, 0.11f);
+
+		ACCENT = accent;
+		ACCENT_DIM = blend(accent, 0xFF000000, 0.35f);
+		ON_ACCENT = blend(accent, 0xFF000000, 0.85f);
+		MENU_SELECTED = argb(0x26, accent);
+	}
+
+	public static int argb(int alpha, int rgb) {
+		int a = alpha < 0 ? 0 : (alpha > 255 ? 255 : alpha);
+		return (a << 24) | (rgb & 0xFFFFFF);
+	}
 
 	public static final int RAIL_WIDTH = 78;
 	public static final int TOP_BAR_HEIGHT = 24;
@@ -38,8 +68,7 @@ public final class Theme {
 	public static final int ART_SIZE = 52;
 
 	public static final int TILE_TARGET_WIDTH = 84;
-	public static final int TILE_ART_HEIGHT = 46;
-	public static final int TILE_HEIGHT = TILE_ART_HEIGHT + 25;
+	public static final int TILE_TEXT_HEIGHT = 25;
 	public static final int GRID_GAP = 8;
 
 	public static int artColor(MusicContext context) {

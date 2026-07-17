@@ -7,6 +7,10 @@ public final class SantoraConfig {
 	public static final int CROSSFADE_MAX_MILLIS = 12_000;
 	public static final int DELAY_MAX_MILLIS = 300_000;
 
+	public static final int DEFAULT_BACKGROUND = 0x141926;
+	public static final int DEFAULT_ACCENT = 0xE3A44C;
+	public static final int MENU_OPACITY_MIN = 30;
+
 	private boolean crossfadeOn = true;
 	private int crossfadeMillis = 3_000;
 	private int delayMinMillis = 0;
@@ -19,6 +23,13 @@ public final class SantoraConfig {
 	private boolean overlayOn = false;
 	private float overlayX = 0f;
 	private float overlayY = 0f;
+
+	private int menuBackground = DEFAULT_BACKGROUND;
+	private int menuAccent = DEFAULT_ACCENT;
+	private int menuOpacity = 100;
+	private int hudBackground = DEFAULT_BACKGROUND;
+	private int hudAccent = DEFAULT_ACCENT;
+	private int hudOpacity = 90;
 
 	private boolean resumeOnLaunch = false;
 	private boolean wasManual = false;
@@ -114,6 +125,73 @@ public final class SantoraConfig {
 	public void setOverlayPos(float x, float y) {
 		this.overlayX = clamp01(x);
 		this.overlayY = clamp01(y);
+	}
+
+	public int menuBackground() {
+		return menuBackground;
+	}
+
+	public void setMenuBackground(int rgb) {
+		this.menuBackground = rgb & 0xFFFFFF;
+	}
+
+	public int menuAccent() {
+		return menuAccent;
+	}
+
+	public void setMenuAccent(int rgb) {
+		this.menuAccent = rgb & 0xFFFFFF;
+	}
+
+	public int menuOpacity() {
+		return menuOpacity;
+	}
+
+	public void setMenuOpacity(int percent) {
+		this.menuOpacity = clamp(percent, MENU_OPACITY_MIN, 100);
+	}
+
+	public int hudBackground() {
+		return hudBackground;
+	}
+
+	public void setHudBackground(int rgb) {
+		this.hudBackground = rgb & 0xFFFFFF;
+	}
+
+	public int hudAccent() {
+		return hudAccent;
+	}
+
+	public void setHudAccent(int rgb) {
+		this.hudAccent = rgb & 0xFFFFFF;
+	}
+
+	public int hudOpacity() {
+		return hudOpacity;
+	}
+
+	public void setHudOpacity(int percent) {
+		this.hudOpacity = clamp(percent, 0, 100);
+	}
+
+	public static int parseColor(String value, int fallback) {
+		if (value == null) {
+			return fallback;
+		}
+		String hex = value.startsWith("#") ? value.substring(1) : value;
+		if (hex.length() != 6) {
+			return fallback;
+		}
+		try {
+			return Integer.parseInt(hex, 16);
+		} catch (NumberFormatException e) {
+			return fallback;
+		}
+	}
+
+	public static String formatColor(int rgb) {
+		return String.format("#%06X", rgb & 0xFFFFFF);
 	}
 
 	public boolean resumeOnLaunch() {

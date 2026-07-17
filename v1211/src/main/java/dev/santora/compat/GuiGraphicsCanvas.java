@@ -75,7 +75,7 @@ public final class GuiGraphicsCanvas implements SantoraCanvas {
 	}
 
 	@Override
-	public void blit(Identifier texture, int x, int y, int w, int h) {
-		gfx.blit(texture, x, y, x + w, y + h, 0.0f, 1.0f, 0.0f, 1.0f);
+	public void blit(Identifier texture, int x, int y, int w, int h, float u0, float u1, float v0, float v1) {
+		gfx.blit(texture, x, y, x + w, y + h, u0, u1, v0, v1);
 	}
 }

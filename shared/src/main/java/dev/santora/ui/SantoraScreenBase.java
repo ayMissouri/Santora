@@ -1,5 +1,6 @@
 package dev.santora.ui;
 
+import dev.santora.engine.MusicEngine;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -18,6 +19,10 @@ public abstract class SantoraScreenBase extends Screen {
 	public boolean isPauseScreen() {
 		// Opening the menu does not pause the game.
 		return false;
+	}
+
+	protected boolean wantsVanillaBackground() {
+		return MusicEngine.get().config().menuOpacity() >= 100;
 	}
 
 	protected void draw(SantoraCanvas canvas, int mouseX, int mouseY) {

@@ -42,6 +42,16 @@ class LibraryBuilderTest {
 	}
 
 	@Test
+	void accentedArtistNamesKeepTheirLettersInSlugs() {
+		MusicLibrary lib = LibraryBuilder.build(
+				List.of(new RawSound("minecraft:music_disc.5", "minecraft:records/5")),
+				key -> "Samuel Åberg - 5");
+		Album album = lib.artistAlbums().get(0);
+		assertEquals("artist:samuel_aberg", album.id(), "Å should become a, not vanish");
+		assertEquals("santora:textures/album/artist/samuel_aberg.png", album.artKey());
+	}
+
+	@Test
 	void fallsBackToPrettifiedFileNameWhenTranslationMissing() {
 		MusicLibrary lib = build(List.of(new RawSound("minecraft:music.game", "minecraft:music/game/mice_on_venus")));
 		Track track = lib.tracks().get(0);
@@ -89,7 +99,7 @@ class LibraryBuilderTest {
 				new RawSound("minecraft:music.under_water", "minecraft:music/game/water/axolotl")));
 
 		List<String> titles = lib.updateAlbums().stream().map(Album::title).toList();
-		assertEquals(List.of("Classic", "Update Aquatic", "Nether Update"), titles,
+		assertEquals(List.of("Classic", "Aquatic Update", "Nether Update"), titles,
 				"the grid should read as a timeline, not alphabetically");
 		assertEquals("1.16 · 1 track", lib.updateAlbums().get(2).subtitle());
 	}

@@ -51,6 +51,16 @@ public final class ConfigIo {
 			config.setOverlayOn(getBool(json, "overlay_on", config.overlayOn()));
 			config.setOverlayPos(getFloat(json, "overlay_x", config.overlayX()),
 					getFloat(json, "overlay_y", config.overlayY()));
+			config.setMenuBackground(SantoraConfig.parseColor(
+					getString(json, "menu_background", ""), config.menuBackground()));
+			config.setMenuAccent(SantoraConfig.parseColor(
+					getString(json, "menu_accent", ""), config.menuAccent()));
+			config.setMenuOpacity(getInt(json, "menu_opacity", config.menuOpacity()));
+			config.setHudBackground(SantoraConfig.parseColor(
+					getString(json, "hud_background", ""), config.hudBackground()));
+			config.setHudAccent(SantoraConfig.parseColor(
+					getString(json, "hud_accent", ""), config.hudAccent()));
+			config.setHudOpacity(getInt(json, "hud_opacity", config.hudOpacity()));
 			config.setResumeOnLaunch(getBool(json, "resume_on_launch", config.resumeOnLaunch()));
 			config.setWasManual(getBool(json, "was_manual", config.wasManual()));
 			config.setLastContextId(getString(json, "last_context_id", config.lastContextId()));
@@ -73,6 +83,12 @@ public final class ConfigIo {
 		json.addProperty("overlay_on", config.overlayOn());
 		json.addProperty("overlay_x", config.overlayX());
 		json.addProperty("overlay_y", config.overlayY());
+		json.addProperty("menu_background", SantoraConfig.formatColor(config.menuBackground()));
+		json.addProperty("menu_accent", SantoraConfig.formatColor(config.menuAccent()));
+		json.addProperty("menu_opacity", config.menuOpacity());
+		json.addProperty("hud_background", SantoraConfig.formatColor(config.hudBackground()));
+		json.addProperty("hud_accent", SantoraConfig.formatColor(config.hudAccent()));
+		json.addProperty("hud_opacity", config.hudOpacity());
 		json.addProperty("resume_on_launch", config.resumeOnLaunch());
 		json.addProperty("was_manual", config.wasManual());
 		json.addProperty("last_context_id", config.lastContextId());

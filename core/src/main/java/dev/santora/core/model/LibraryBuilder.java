@@ -1,5 +1,6 @@
 package dev.santora.core.model;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -50,7 +51,7 @@ public final class LibraryBuilder {
 			if (!list.isEmpty()) {
 				albums.add(new Album("context:" + context.id(), context.displayName(),
 						plural(list.size()), AlbumKind.CONTEXT, list,
-						"santora:textures/album/" + context.id() + ".png"));
+						"santora:textures/album/context/" + context.id() + ".png"));
 			}
 		});
 		return albums;
@@ -66,7 +67,8 @@ public final class LibraryBuilder {
 
 		List<Album> albums = new ArrayList<>();
 		byArtist.forEach((artist, list) -> albums.add(new Album("artist:" + slug(artist), artist,
-				plural(list.size()), AlbumKind.ARTIST, list, null)));
+				plural(list.size()), AlbumKind.ARTIST, list,
+				"santora:textures/album/artist/" + slug(artist) + ".png")));
 		return albums;
 	}
 
@@ -86,7 +88,8 @@ public final class LibraryBuilder {
 					? plural(list.size())
 					: update.versionLabel() + " · " + plural(list.size());
 			albums.add(new Album("update:" + update.id(), update.displayName(), subtitle,
-					AlbumKind.UPDATE, list, null));
+					AlbumKind.UPDATE, list,
+					"santora:textures/album/update/" + update.id() + ".png"));
 		}
 		return albums;
 	}
@@ -124,7 +127,8 @@ public final class LibraryBuilder {
 	}
 
 	private static String slug(String value) {
-		return value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
+		String plain = Normalizer.normalize(value, Normalizer.Form.NFKD).replaceAll("\\p{M}+", "");
+		return plain.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_|_$", "");
 	}
 
 	private static String lastSegment(String path) {

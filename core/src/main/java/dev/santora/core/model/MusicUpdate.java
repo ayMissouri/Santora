@@ -26,7 +26,7 @@ public enum MusicUpdate {
 			"concrete_halls", "dead_voxel", "warmth", "ballad_of_the_cats",
 			"the_end", "boss", "alpha")),
 
-	AQUATIC("aquatic", "Update Aquatic", "1.13", Set.of(
+	AQUATIC("aquatic", "Aquatic Update", "1.13", Set.of(
 			"axolotl", "dragon_fish", "shuniji")),
 
 	NETHER("nether", "Nether Update", "1.16", Set.of(
