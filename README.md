@@ -3,7 +3,7 @@
 An in-game music player for Minecraft's own soundtrack. Browse every track as albums,
 with play/pause/skip, shuffle, a queue, and crossfade.
 
-Client-side only. No server needed, no audio shipped.
+Fully Client-side.
 
 ---
 
