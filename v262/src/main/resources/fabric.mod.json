@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"id": "santora",
+	"version": "${version}",
+	"name": "Santora",
+	"description": "An in-game music player for Minecraft's own soundtrack. Browse every vanilla track as albums, with play/pause/skip, shuffle, a queue, and crossfade. Client-side only; ships no audio.",
+	"authors": ["amissouri"],
+	"contact": {},
+	"license": "MIT",
+	"icon": "assets/santora/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.santora.compat.SantoraEntrypoint"
+		]
+	},
+	"mixins": [
+		"santora.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "${minecraft_version}",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

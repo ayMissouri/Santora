@@ -1,0 +1,67 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+base {
+	archivesName = "${archives_base_name}-mc${minecraft_version_262}"
+}
+
+repositories {
+	mavenCentral()
+}
+
+sourceSets {
+	main {
+		java.srcDirs += [
+			rootProject.file('core/src/main/java'),
+			rootProject.file('shared/src/main/java')
+		]
+		resources.srcDirs += [
+			rootProject.file('shared/src/main/resources')
+		]
+	}
+}
+
+loom {
+	mods {
+		"santora" {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraft_version_262}"
+	implementation "net.fabricmc:fabric-loader:${loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version_262}"
+}
+
+processResources {
+	inputs.property 'version', project.version
+	inputs.property 'minecraft_version', minecraft_version_262
+	inputs.property 'loader_version', loader_version
+
+	filesMatching('fabric.mod.json') {
+		expand version: project.version,
+			minecraft_version: minecraft_version_262,
+			loader_version: loader_version
+	}
+}
+
+def collectDist = tasks.register('collectDist', Sync) {
+	from tasks.named('jar')
+	into rootProject.layout.projectDirectory.dir("dist/mc${minecraft_version_262}")
+}
+
+tasks.named('build') {
+	finalizedBy collectDist
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = Integer.parseInt(java_version_262)
+	options.encoding = 'UTF-8'
+}
+
+java {
+	toolchain.languageVersion = JavaLanguageVersion.of(Integer.parseInt(java_version_262))
+}

@@ -1,0 +1,14 @@
+plugins {
+	id 'base'
+}
+
+allprojects {
+	group = project.maven_group
+	version = project.mod_version
+}
+
+tasks.register('buildAll') {
+	group = 'build'
+	description = 'Builds Santora for every supported Minecraft target (1.21.11 and 26.2).'
+	dependsOn ':v1211:build', ':v262:build'
+}

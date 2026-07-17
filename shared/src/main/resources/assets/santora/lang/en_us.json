@@ -1,0 +1,26 @@
+{
+	"key.santora.open": "Open Santora",
+	"key.categories.santora": "Santora",
+
+	"screen.santora.player": "Santora Music Player",
+
+	"santora.sidebar.albums": "Albums",
+	"santora.sidebar.artists": "Artists",
+	"santora.sidebar.biomes": "Biomes",
+
+	"santora.action.play": "Play",
+	"santora.action.shuffle": "Shuffle",
+	"santora.action.queue": "Queue",
+
+	"santora.state.manual": "Manual",
+	"santora.state.vanilla": "Vanilla",
+	"santora.state.nothing_playing": "Nothing playing",
+	"santora.state.indexing": "Indexing music...",
+	"santora.state.queue_empty": "Queue is empty",
+	"santora.state.no_tracks": "No tracks",
+
+	"santora.config.crossfade": "Crossfade",
+	"santora.config.track_delay": "Delay between tracks",
+	"santora.config.volume": "Santora volume",
+	"santora.config.resume_on_launch": "Resume on launch"
+}

@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "dev.santora.mixin",
+	"client": [
+		"MusicManagerMixin",
+		"MusicManagerAccessor",
+		"SoundEngineAccessor",
+		"SoundManagerAccessor",
+		"WeighedSoundEventsAccessor"
+	],
+	"mixins": [],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

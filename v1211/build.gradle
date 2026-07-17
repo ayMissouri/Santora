@@ -1,0 +1,68 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+base {
+	archivesName = "${archives_base_name}-mc${minecraft_version_1211}"
+}
+
+repositories {
+	mavenCentral()
+}
+
+sourceSets {
+	main {
+		java.srcDirs += [
+			rootProject.file('core/src/main/java'),
+			rootProject.file('shared/src/main/java')
+		]
+		resources.srcDirs += [
+			rootProject.file('shared/src/main/resources')
+		]
+	}
+}
+
+loom {
+	mods {
+		"santora" {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraft_version_1211}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version_1211}"
+}
+
+processResources {
+	inputs.property 'version', project.version
+	inputs.property 'minecraft_version', minecraft_version_1211
+	inputs.property 'loader_version', loader_version
+
+	filesMatching('fabric.mod.json') {
+		expand version: project.version,
+			minecraft_version: minecraft_version_1211,
+			loader_version: loader_version
+	}
+}
+
+def collectDist = tasks.register('collectDist', Sync) {
+	from tasks.named('remapJar')
+	into rootProject.layout.projectDirectory.dir("dist/mc${minecraft_version_1211}")
+}
+
+tasks.named('build') {
+	finalizedBy collectDist
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = Integer.parseInt(java_version_1211)
+	options.encoding = 'UTF-8'
+}
+
+java {
+	toolchain.languageVersion = JavaLanguageVersion.of(Integer.parseInt(java_version_1211))
+}
