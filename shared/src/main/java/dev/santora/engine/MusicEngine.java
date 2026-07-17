@@ -37,6 +37,7 @@ public final class MusicEngine {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final MusicEngine INSTANCE = new MusicEngine();
 	private static final int START_GRACE_TICKS = 5;
+	private static final long RESUME_TIMEOUT_MS = 30_000;
 
 	private static final class Voice {
 		final Track track;
@@ -79,6 +80,11 @@ public final class MusicEngine {
 	private long pausedTotalMs;
 
 	private long resumeAtMs;
+
+	private Track pendingResumeTrack;
+	private boolean pendingResumeWasPaused;
+	private long pendingResumeMillis;
+	private long pendingResumeUntilMs;
 
 	private MusicEngine() {
 	}
@@ -151,6 +157,7 @@ public final class MusicEngine {
 			resetMusicCategoryGain(mc);
 		} else {
 			stopAllVoices();
+			pendingResumeTrack = null;
 			paused = false;
 			resumeAtMs = 0;
 			queue.reset();
@@ -189,6 +196,9 @@ public final class MusicEngine {
 
 	public void togglePlayPause() {
 		if (current == null) {
+			if (pendingResumeTrack != null) {
+				return;
+			}
 			if (manualMode) {
 				advance(true);
 			}
@@ -240,6 +250,7 @@ public final class MusicEngine {
 	}
 
 	public void stop() {
+		pendingResumeTrack = null;
 		stopAllVoices();
 		queue.setCurrent(null);
 	}
@@ -264,7 +275,16 @@ public final class MusicEngine {
 	}
 
 	public void tick() {
-		if (!manualMode || paused) {
+		if (!manualMode) {
+			return;
+		}
+
+		if (pendingResumeTrack != null) {
+			tryResumePending();
+			return;
+		}
+
+		if (paused) {
 			return;
 		}
 
@@ -344,6 +364,11 @@ public final class MusicEngine {
 	}
 
 	private void startTrack(Track track, boolean crossfade) {
+		startTrack(track, crossfade, 0);
+	}
+
+	private void startTrack(Track track, boolean crossfade, long seekMillis) {
+		pendingResumeTrack = null;
 		PlayableSound sound = playable.get(track.soundPath());
 		if (sound == null) {
 			LOGGER.warn("[Santora] no playable sound for {}", track.soundPath());
@@ -352,6 +377,7 @@ public final class MusicEngine {
 
 		Minecraft mc = Minecraft.getInstance();
 		SantoraSoundInstance instance = new SantoraSoundInstance(sound.eventId(), sound.sound());
+		instance.setSeekMillis(seekMillis);
 
 		if (crossfade && current != null) {
 			if (outgoing != null) {
@@ -372,7 +398,7 @@ public final class MusicEngine {
 			return;
 		}
 
-		current = new Voice(track, instance, now());
+		current = new Voice(track, instance, now() - seekMillis);
 		queue.setCurrent(track);
 		paused = false;
 		pausedTotalMs = 0;
@@ -399,6 +425,41 @@ public final class MusicEngine {
 		stopVoice(current);
 		outgoing = null;
 		current = null;
+	}
+
+	public void onExternalStop() {
+		if (!manualMode || current == null) {
+			return;
+		}
+		pendingResumeTrack = current.track;
+		pendingResumeWasPaused = paused;
+		pendingResumeMillis = elapsedMillis();
+		pendingResumeUntilMs = now() + RESUME_TIMEOUT_MS;
+		stopAllVoices();
+	}
+
+	private void tryResumePending() {
+		if (now() > pendingResumeUntilMs) {
+			pendingResumeTrack = null;
+			return;
+		}
+		if (!soundEngineLoaded()) {
+			return;
+		}
+		Track track = pendingResumeTrack;
+		boolean wasPaused = pendingResumeWasPaused;
+		long seekMillis = pendingResumeMillis;
+		pendingResumeTrack = null;
+		startTrack(track, false, seekMillis);
+		if (current != null && wasPaused) {
+			setPaused(true);
+		}
+	}
+
+	private boolean soundEngineLoaded() {
+		SoundEngine engine = ((SoundManagerAccessor) Minecraft.getInstance().getSoundManager())
+				.santora$soundEngine();
+		return ((SoundEngineAccessor) engine).santora$loaded();
 	}
 
 	// Pausing and resuming

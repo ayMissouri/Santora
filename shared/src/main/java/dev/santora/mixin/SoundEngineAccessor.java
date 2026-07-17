@@ -13,4 +13,7 @@ public interface SoundEngineAccessor {
 
 	@Accessor("instanceToChannel")
 	Map<SoundInstance, ChannelAccess.ChannelHandle> santora$instanceToChannel();
+
+	@Accessor("loaded")
+	boolean santora$loaded();
 }

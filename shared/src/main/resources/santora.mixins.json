@@ -8,6 +8,7 @@
 		"SoundEngineAccessor",
 		"SoundEngineMixin",
 		"SoundManagerAccessor",
+		"SoundManagerMixin",
 		"WeighedSoundEventsAccessor"
 	],
 	"mixins": [],

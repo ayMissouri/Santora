@@ -14,4 +14,9 @@ public class SoundEngineMixin {
 	private void santora$keepManualPause(CallbackInfo ci) {
 		MusicEngine.get().reassertPause();
 	}
+
+	@Inject(method = "reload", at = @At("HEAD"))
+	private void santora$onReload(CallbackInfo ci) {
+		MusicEngine.get().onExternalStop();
+	}
 }

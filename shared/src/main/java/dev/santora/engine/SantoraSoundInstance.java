@@ -1,18 +1,24 @@
 package dev.santora.engine;
 
+import net.fabricmc.fabric.api.client.sound.v1.FabricSoundInstance;
 import net.minecraft.client.resources.sounds.AbstractSoundInstance;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.resources.sounds.TickableSoundInstance;
+import net.minecraft.client.sounds.AudioStream;
+import net.minecraft.client.sounds.SoundBufferLibrary;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 
-public class SantoraSoundInstance extends AbstractSoundInstance implements TickableSoundInstance {
+import java.util.concurrent.CompletableFuture;
+
+public class SantoraSoundInstance extends AbstractSoundInstance implements TickableSoundInstance, FabricSoundInstance {
 
 	private final Sound forcedSound;
 	private boolean stopped;
+	private long seekMillis;
 
 	public SantoraSoundInstance(Identifier eventId, Sound forcedSound) {
 		super(eventId, SoundSource.MUSIC, SoundInstance.createUnseededRandom());
@@ -63,5 +69,23 @@ public class SantoraSoundInstance extends AbstractSoundInstance implements Ticka
 
 	public Sound forcedSound() {
 		return forcedSound;
+	}
+
+	public void setSeekMillis(long millis) {
+		this.seekMillis = millis < 0 ? 0 : millis;
+	}
+
+	public long seekMillis() {
+		return seekMillis;
+	}
+
+	@Override
+	public CompletableFuture<AudioStream> getAudioStream(SoundBufferLibrary loader, Identifier id, boolean repeatInstantly) {
+		CompletableFuture<AudioStream> stream = loader.getStream(id, repeatInstantly);
+		if (seekMillis <= 0) {
+			return stream;
+		}
+		long skip = seekMillis;
+		return stream.thenApply(delegate -> new SeekingAudioStream(delegate, skip));
 	}
 }
