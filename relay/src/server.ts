@@ -1,8 +1,8 @@
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 
 const PORT = Number(process.env.PORT) || 8080;
-const MAX_ROOMS = 500;
-const MAX_MEMBERS = 20;
+const MAX_ROOMS = 5000;
+const MAX_MEMBERS = 200;
 const RATE_BURST = 40;
 const RATE_REFILL_PER_SEC = 20;
 const NAME_MAX = 24;

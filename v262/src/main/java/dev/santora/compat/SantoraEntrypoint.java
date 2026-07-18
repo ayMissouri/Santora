@@ -43,4 +43,9 @@ public final class SantoraEntrypoint implements ClientModInitializer, SantoraPla
 	public void setClipboard(String text) {
 		Minecraft.getInstance().keyboardHandler.setClipboard(text);
 	}
+
+	@Override
+	public String getClipboard() {
+		return Minecraft.getInstance().keyboardHandler.getClipboard();
+	}
 }

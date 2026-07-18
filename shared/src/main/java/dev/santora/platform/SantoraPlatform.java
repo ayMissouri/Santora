@@ -15,6 +15,8 @@ public interface SantoraPlatform {
 
 	void setClipboard(String text);
 
+	String getClipboard();
+
 	final class Holder {
 		private static SantoraPlatform instance;
 

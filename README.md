@@ -81,6 +81,16 @@ shared queue and set their own volume, while the host stays in charge of skippin
 Open **Party**, hit **Host party**, and share the code. Friends paste it into **Join** and
 they're listening along, on any server or world.
 
+<div align="center">
+  <img src="screenshots/listening_party.png" width="720" alt="The Party tab" />
+</div>
+
+You can join your friends parties using a code. Everyone can add songs to the queue, but only the host can skip or pause.
+
+<img src="screenshots/listening_party1.png" width="100%" alt="Host view beside a follower's view" />
+
+<img src="screenshots/listening_party2.png" width="100%" alt="Two players listening to the same track in sync" />
+
 ---
 
 ## Now Playing HUD

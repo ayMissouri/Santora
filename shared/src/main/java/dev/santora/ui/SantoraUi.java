@@ -147,6 +147,9 @@ public final class SantoraUi {
 	private static final int PARTY_FOCUS_CODE = 2;
 	private static final int PARTY_CODE_MAX = 8;
 	private static final int PARTY_FIELD_MAX = 60;
+	private static final int KEY_V = 86;
+	private static final int MOD_CTRL = 0x0002;
+	private static final int MOD_SUPER = 0x0008;
 
 	private static final long PARTY_COPIED_MS = 1_500;
 
@@ -1231,6 +1234,32 @@ public final class SantoraUi {
 		};
 	}
 
+	private static boolean isPasteChord(int keyCode, int modifiers) {
+		return keyCode == KEY_V && (modifiers & (MOD_CTRL | MOD_SUPER)) != 0;
+	}
+
+	private void pasteInto(StringBuilder target) {
+		String clip = Santora.getClipboard();
+		if (clip == null || clip.isEmpty()) {
+			return;
+		}
+		boolean code = partyFocus == PARTY_FOCUS_CODE;
+		int max = code ? PARTY_CODE_MAX : PARTY_FIELD_MAX;
+		for (int i = 0; i < clip.length() && target.length() < max; i++) {
+			char c = clip.charAt(i);
+			if (c < ' ' || c == 127) {
+				continue;
+			}
+			if (code) {
+				if (c == ' ') {
+					continue;
+				}
+				c = Character.toUpperCase(c);
+			}
+			target.append(c);
+		}
+	}
+
 	// Placing the now playing overlay
 	private Rect overlayCardRect() {
 		SantoraConfig config = engine.config();
@@ -2208,7 +2237,7 @@ public final class SantoraUi {
 		return true;
 	}
 
-	public boolean keyPressed(int keyCode) {
+	public boolean keyPressed(int keyCode, int modifiers) {
 		if (movingOverlay) {
 			if (keyCode == 256) { // escape
 				exitOverlayMove();
@@ -2251,6 +2280,12 @@ public final class SantoraUi {
 
 		if (view == View.PARTY && partyFocus != PARTY_FOCUS_NONE) {
 			StringBuilder target = partyBuffer();
+			if (isPasteChord(keyCode, modifiers)) {
+				if (target != null) {
+					pasteInto(target);
+				}
+				return true;
+			}
 			switch (keyCode) {
 				case 259 -> { // backspace
 					if (target != null && target.length() > 0) {

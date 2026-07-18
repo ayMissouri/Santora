@@ -22,7 +22,7 @@ import java.util.OptionalDouble;
 
 public final class PartyController implements PartyBridge {
 	// replace to use your own hosted relay
-	public static final String RELAY_URL = "wss://tbd";
+	public static final String RELAY_URL = "wss://santora.up.railway.app";
 
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final PartyController INSTANCE = new PartyController();

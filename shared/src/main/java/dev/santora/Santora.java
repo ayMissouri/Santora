@@ -101,4 +101,8 @@ public final class Santora {
 	public static void copyToClipboard(String text) {
 		SantoraPlatform.Holder.get().setClipboard(text);
 	}
+
+	public static String getClipboard() {
+		return SantoraPlatform.Holder.get().getClipboard();
+	}
 }
