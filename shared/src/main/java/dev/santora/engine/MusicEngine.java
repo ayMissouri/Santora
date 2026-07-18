@@ -71,6 +71,8 @@ public final class MusicEngine {
 	});
 
 	private boolean manualMode;
+	private boolean follower;
+	private PartyBridge party = PartyBridge.NONE;
 	private Voice current;
 	private Voice outgoing;
 	private long fadeStartMs;
@@ -119,6 +121,19 @@ public final class MusicEngine {
 		return playlists;
 	}
 
+	// Party
+	public void setPartyBridge(PartyBridge bridge) {
+		this.party = bridge == null ? PartyBridge.NONE : bridge;
+	}
+
+	public boolean isFollower() {
+		return follower;
+	}
+
+	public void setFollower(boolean value) {
+		this.follower = value;
+	}
+
 	public List<Album> playlistAlbums() {
 		if (playlistAlbumsRevision != playlists.revision() || playlistAlbumsLibrary != library) {
 			playlistAlbums = playlists.toAlbums(library);
@@ -141,6 +156,9 @@ public final class MusicEngine {
 	}
 
 	public void setManualMode(boolean manual) {
+		if (follower && !manual) {
+			return;
+		}
 		if (this.manualMode == manual) {
 			return;
 		}
@@ -174,6 +192,9 @@ public final class MusicEngine {
 
 	// Playback controls
 	public void playAlbum(Album album, int index) {
+		if (follower) {
+			return;
+		}
 		setManualMode(true);
 		queue.setContext(album.id(), album.tracks(), index);
 		queue.clearHistory();
@@ -181,11 +202,17 @@ public final class MusicEngine {
 	}
 
 	public void playTrack(Track track) {
+		if (follower) {
+			return;
+		}
 		setManualMode(true);
 		startTrack(track, config.crossfadeEnabled());
 	}
 
 	public void shuffleAll() {
+		if (follower) {
+			return;
+		}
 		setManualMode(true);
 		queue.setShuffle(true);
 		config.setShuffle(true);
@@ -195,6 +222,9 @@ public final class MusicEngine {
 	}
 
 	public void togglePlayPause() {
+		if (follower) {
+			return;
+		}
 		if (current == null) {
 			if (pendingResumeTrack != null) {
 				return;
@@ -220,6 +250,8 @@ public final class MusicEngine {
 			pausedTotalMs += now() - pausedAtMs;
 			setChannelPaused(current, false);
 		}
+
+		party.onPlaybackChanged();
 	}
 
 	public boolean isPaused() {
@@ -227,10 +259,16 @@ public final class MusicEngine {
 	}
 
 	public void next() {
+		if (follower) {
+			return;
+		}
 		advance(true);
 	}
 
 	public void previous() {
+		if (follower) {
+			return;
+		}
 		if (current != null && elapsedMillis() > 3_000) {
 			restartCurrent();
 			return;
@@ -250,17 +288,27 @@ public final class MusicEngine {
 	}
 
 	public void stop() {
+		if (follower) {
+			return;
+		}
 		pendingResumeTrack = null;
 		stopAllVoices();
 		queue.setCurrent(null);
+		party.onPlaybackChanged();
 	}
 
 	public void setShuffle(boolean shuffle) {
+		if (follower) {
+			return;
+		}
 		queue.setShuffle(shuffle);
 		config.setShuffle(shuffle);
 	}
 
 	public void cycleRepeat() {
+		if (follower) {
+			return;
+		}
 		RepeatMode mode = queue.repeat().nextMode();
 		queue.setRepeat(mode);
 		config.setRepeat(mode);
@@ -274,6 +322,34 @@ public final class MusicEngine {
 		}
 	}
 
+	public void requestEnqueue(Track track, boolean next) {
+		if (follower) {
+			party.onMemberEnqueue(track, next);
+			return;
+		}
+		if (next) {
+			queue.enqueueNext(track);
+		} else {
+			queue.enqueue(track);
+		}
+	}
+
+	public void followerStart(Track track, long positionMillis, boolean paused) {
+		setManualMode(true);
+		startTrack(track, false, positionMillis);
+		if (paused && current != null) {
+			setPaused(true);
+		}
+	}
+
+	public void followerSetPaused(boolean value) {
+		setPaused(value);
+	}
+
+	public void followerIdle() {
+		stopAllVoices();
+	}
+
 	public void tick() {
 		if (!manualMode) {
 			return;
@@ -285,6 +361,16 @@ public final class MusicEngine {
 		}
 
 		if (paused) {
+			return;
+		}
+
+		if (follower) {
+			if (current != null) {
+				current.ticksAlive++;
+				if (current.ticksAlive > START_GRACE_TICKS && !isActive(current)) {
+					current = null;
+				}
+			}
 			return;
 		}
 
@@ -406,6 +492,8 @@ public final class MusicEngine {
 
 		config.setLastTrackPath(track.soundPath());
 		config.setLastContextId(queue.contextId());
+
+		party.onPlaybackChanged();
 	}
 
 	private boolean isActive(Voice voice) {

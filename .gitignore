@@ -24,6 +24,9 @@ bin/
 # VS Code
 .vscode/
 
+# Node (party relay)
+relay/node_modules/
+
 # OS
 .DS_Store
 Thumbs.db

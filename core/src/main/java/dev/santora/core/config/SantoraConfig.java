@@ -36,6 +36,8 @@ public final class SantoraConfig {
 	private String lastContextId = "";
 	private String lastTrackPath = "";
 
+	private String displayName = "";
+
 	public boolean crossfadeOn() {
 		return crossfadeOn;
 	}
@@ -224,6 +226,14 @@ public final class SantoraConfig {
 
 	public void setLastTrackPath(String path) {
 		this.lastTrackPath = path == null ? "" : path;
+	}
+
+	public String displayName() {
+		return displayName;
+	}
+
+	public void setDisplayName(String name) {
+		this.displayName = name == null ? "" : name.trim();
 	}
 
 	public boolean crossfadeEnabled() {

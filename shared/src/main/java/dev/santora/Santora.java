@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import dev.santora.config.ConfigIo;
 import dev.santora.config.PlaylistIo;
 import dev.santora.engine.MusicEngine;
+import dev.santora.party.PartyController;
 import dev.santora.platform.SantoraPlatform;
 import dev.santora.ui.Theme;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -34,6 +35,7 @@ public final class Santora {
 		ConfigIo.load(MusicEngine.get().config());
 		PlaylistIo.load(MusicEngine.get().playlists());
 		Theme.refresh(MusicEngine.get().config());
+		MusicEngine.get().setPartyBridge(PartyController.get());
 
 		// this is to support both game versions.
 		openKey = platform.registerKeyMapping(new KeyMapping(
@@ -57,7 +59,9 @@ public final class Santora {
 			}
 		}
 
+		PartyController.get().drainInbound();
 		MusicEngine.get().tick();
+		PartyController.get().tickRole();
 	}
 
 	private static void tryLoadLibrary(Minecraft mc) {
@@ -92,5 +96,9 @@ public final class Santora {
 
 	public static void savePlaylists() {
 		PlaylistIo.save(MusicEngine.get().playlists());
+	}
+
+	public static void copyToClipboard(String text) {
+		SantoraPlatform.Holder.get().setClipboard(text);
 	}
 }

@@ -8,12 +8,15 @@ import dev.santora.core.model.MusicContext;
 import dev.santora.core.model.MusicLibrary;
 import dev.santora.core.model.Playlists;
 import dev.santora.core.model.Track;
+import dev.santora.core.party.PartyMember;
 import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
+import dev.santora.party.PartyController;
 import net.minecraft.client.input.CharacterEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.OptionalDouble;
 
 public final class SantoraUi {
@@ -30,6 +33,7 @@ public final class SantoraUi {
 		UPDATES("Updates"),
 		PLAYLISTS("Playlists"),
 		QUEUE("Queue"),
+		PARTY("Party"),
 		SETTINGS("Settings");
 
 		final String label;
@@ -138,6 +142,19 @@ public final class SantoraUi {
 	private final StringBuilder nameInput = new StringBuilder();
 	private String namingTrackPath;
 
+	private static final int PARTY_FOCUS_NONE = 0;
+	private static final int PARTY_FOCUS_NAME = 1;
+	private static final int PARTY_FOCUS_CODE = 2;
+	private static final int PARTY_CODE_MAX = 8;
+	private static final int PARTY_FIELD_MAX = 60;
+
+	private static final long PARTY_COPIED_MS = 1_500;
+
+	private int partyFocus = PARTY_FOCUS_NONE;
+	private final StringBuilder partyNameInput = new StringBuilder();
+	private final StringBuilder partyCodeInput = new StringBuilder();
+	private long partyCodeCopiedAt;
+
 	private int winX;
 	private int winY;
 	private int winW;
@@ -197,8 +214,16 @@ public final class SantoraUi {
 	}
 
 	private Rect menuRect(int index) {
-		return new Rect(winX, contentTop() + 8 + index * (Theme.MENU_ROW_HEIGHT + 2),
-				Theme.RAIL_WIDTH - 1, Theme.MENU_ROW_HEIGHT);
+		int stride = menuRowStride();
+		int rowHeight = Math.min(Theme.MENU_ROW_HEIGHT, stride - 2);
+		return new Rect(winX, contentTop() + 8 + index * stride, Theme.RAIL_WIDTH - 1, rowHeight);
+	}
+
+	private int menuRowStride() {
+		int count = View.values().length;
+		int region = (contentBottom() - 32) - (contentTop() + 8);
+		int stride = count > 0 ? region / count : Theme.MENU_ROW_HEIGHT + 2;
+		return Math.max(10, Math.min(Theme.MENU_ROW_HEIGHT + 2, stride));
 	}
 
 	private Rect railStatusRect() {
@@ -394,7 +419,7 @@ public final class SantoraUi {
 					selected ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
 
 			if (views[i] == View.QUEUE) {
-				int queued = engine.queue().upcomingCount();
+				int queued = queuedCount();
 				if (queued > 0) {
 					String count = String.valueOf(queued);
 					canvas.text(count, row.right() - 6 - canvas.textWidth(count), textY,
@@ -440,7 +465,7 @@ public final class SantoraUi {
 			case ARTISTS -> library.artistAlbums();
 			case UPDATES -> library.updateAlbums();
 			case PLAYLISTS -> engine.playlistAlbums();
-			case SEARCH, QUEUE, SETTINGS -> List.of();
+			case SEARCH, QUEUE, PARTY, SETTINGS -> List.of();
 		};
 	}
 
@@ -468,7 +493,15 @@ public final class SantoraUi {
 			if (current != null) {
 				rows.add(current);
 			}
-			rows.addAll(engine.queue().upcoming(64));
+			PartyController party = PartyController.get();
+			if (party.isMember()) {
+				MusicLibrary library = engine.library();
+				for (String path : party.mirrorUpcoming()) {
+					library.trackByPath(path).ifPresent(rows::add);
+				}
+			} else {
+				rows.addAll(engine.queue().upcoming(64));
+			}
 			return rows;
 		}
 		Album album = openAlbum();
@@ -480,6 +513,11 @@ public final class SantoraUi {
 
 		if (view == View.SETTINGS) {
 			renderSettings(canvas, mouseX, mouseY);
+			return;
+		}
+
+		if (view == View.PARTY) {
+			renderParty(canvas, mouseX, mouseY);
 			return;
 		}
 
@@ -583,8 +621,11 @@ public final class SantoraUi {
 		canvas.text(canvas.ellipsize(album.subtitle(), textMax), textX,
 				art.y() + 2 + canvas.lineHeight() + 3, Theme.TEXT_SECONDARY, false);
 
-		drawButton(canvas, mouseX, mouseY, playButtonRect(), "Play", true);
-		drawButton(canvas, mouseX, mouseY, shuffleButtonRect(), "Shuffle", false);
+		boolean controls = PartyController.get().canControlPlayback();
+		drawButton(canvas, mouseX, mouseY, playButtonRect(), controls ? "Play" : "Add all", true);
+		if (controls) {
+			drawButton(canvas, mouseX, mouseY, shuffleButtonRect(), "Shuffle", false);
+		}
 	}
 
 	private void renderSearchField(SantoraCanvas canvas) {
@@ -616,15 +657,21 @@ public final class SantoraUi {
 	private void renderQueueHeader(SantoraCanvas canvas, Rect main, int mouseX, int mouseY) {
 		canvas.text("Queue", main.x() + Theme.PADDING, main.y() + 7, Theme.TEXT_PRIMARY, false);
 
+		int count = queuedCount();
 		int right = main.right() - Theme.PADDING;
-		if (engine.queue().upcomingCount() > 0) {
+		if (PartyController.get().canControlPlayback() && count > 0) {
 			Rect clear = clearQueueRect();
 			drawButton(canvas, mouseX, mouseY, clear, "Clear", false);
 			right = clear.x() - 8;
 		}
-		String queued = engine.queue().upcomingCount() + " up next";
+		String queued = count + " up next";
 		canvas.text(queued, right - canvas.textWidth(queued), main.y() + 7,
 				Theme.TEXT_SECONDARY, false);
+	}
+
+	private int queuedCount() {
+		PartyController party = PartyController.get();
+		return party.isMember() ? party.mirrorUpcoming().size() : engine.queue().upcomingCount();
 	}
 
 	// Settings
@@ -976,6 +1023,214 @@ public final class SantoraUi {
 		return Math.round(value / step) * step;
 	}
 
+	// Party
+	private Rect partyNameFieldRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING + 40, m.y() + 30, m.w() - Theme.PADDING * 2 - 40, 14);
+	}
+
+	private Rect partyHostButtonRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.y() + 58, 96, 16);
+	}
+
+	private Rect partyCodeFieldRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.y() + 92, 96, 15);
+	}
+
+	private Rect partyJoinButtonRect() {
+		Rect code = partyCodeFieldRect();
+		return new Rect(code.right() + 6, code.y(), 54, 15);
+	}
+
+	private Rect partyActionButtonRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.bottom() - 22, 96, 16);
+	}
+
+	private Rect partyCodeBoxRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.y() + 39, 92, 16);
+	}
+
+	private void renderParty(SantoraCanvas canvas, int mouseX, int mouseY) {
+		Rect main = mainRect();
+		PartyController party = PartyController.get();
+
+		canvas.text("Listen Together", main.x() + Theme.PADDING, main.y() + 7,
+				Theme.TEXT_PRIMARY, false);
+
+		if (party.isHost() || party.isMember()) {
+			renderPartyActive(canvas, main, party, mouseX, mouseY);
+		} else if (party.connecting()) {
+			canvas.textCentered("Connecting to the relay...", main.x() + main.w() / 2,
+					main.y() + main.h() / 2 - 12, Theme.TEXT_SECONDARY);
+			drawButton(canvas, mouseX, mouseY, partyActionButtonRect(), "Cancel", false);
+		} else {
+			renderPartySetup(canvas, main, party, mouseX, mouseY);
+		}
+	}
+
+	private void renderPartySetup(SantoraCanvas canvas, Rect main, PartyController party,
+			int mouseX, int mouseY) {
+		canvas.text("Hear the same music with friends, in sync.",
+				main.x() + Theme.PADDING, main.y() + 18, Theme.TEXT_MUTED, false);
+
+		Rect name = partyNameFieldRect();
+		canvas.text("Name", main.x() + Theme.PADDING, name.y() + 3, Theme.TEXT_SECONDARY, false);
+		drawInput(canvas, name, partyNameInput.toString(), partyFocus == PARTY_FOCUS_NAME,
+				party.suggestedName());
+
+		drawButton(canvas, mouseX, mouseY, partyHostButtonRect(), "Host party", true);
+
+		Rect code = partyCodeFieldRect();
+		canvas.text("Have a code from a friend?", code.x(), code.y() - 11,
+				Theme.TEXT_SECONDARY, false);
+		drawInput(canvas, code, partyCodeInput.toString(), partyFocus == PARTY_FOCUS_CODE, "CODE");
+		drawButton(canvas, mouseX, mouseY, partyJoinButtonRect(), "Join", false);
+
+		if (party.connectionError()) {
+			canvas.text(canvas.ellipsize("Couldn't connect: " + party.lastError(),
+					main.w() - Theme.PADDING * 2), main.x() + Theme.PADDING,
+					main.bottom() - 22, 0xFFE0665A, false);
+		}
+	}
+
+	private void renderPartyActive(SantoraCanvas canvas, Rect main, PartyController party,
+			int mouseX, int mouseY) {
+		int y = main.y() + 24;
+		if (party.isHost()) {
+			canvas.text("You're hosting", main.x() + Theme.PADDING, y, Theme.TEXT_SECONDARY, false);
+			y += 15;
+			Rect codeBox = partyCodeBoxRect();
+			boolean hover = codeBox.contains(mouseX, mouseY);
+			canvas.fill(codeBox.x(), codeBox.y(), codeBox.right(), codeBox.bottom(), Theme.INPUT_BG);
+			canvas.outline(codeBox.x(), codeBox.y(), codeBox.w(), codeBox.h(),
+					hover ? Theme.TEXT_PRIMARY : Theme.ACCENT);
+			canvas.textCentered(party.code(), codeBox.x() + codeBox.w() / 2,
+					codeBox.y() + (codeBox.h() - canvas.lineHeight()) / 2 + 1, Theme.ACCENT);
+			boolean copied = System.currentTimeMillis() - partyCodeCopiedAt < PARTY_COPIED_MS;
+			String hint = copied ? "Copied!"
+					: hover ? "Click to copy"
+					: "Share this code so friends can join.";
+			canvas.text(hint, codeBox.right() + 8,
+					codeBox.y() + (codeBox.h() - canvas.lineHeight()) / 2 + 1,
+					copied ? Theme.ACCENT : Theme.TEXT_MUTED, false);
+			y += 24;
+		} else {
+			String host = party.hostName().isEmpty() ? "the host" : party.hostName();
+			canvas.text("Following " + host, main.x() + Theme.PADDING, y, Theme.TEXT_SECONDARY, false);
+			y += 13;
+			canvas.text("Only the host skips or pauses. You can add to the queue",
+					main.x() + Theme.PADDING, y, Theme.TEXT_MUTED, false);
+			y += 10;
+			canvas.text("and set your own volume.", main.x() + Theme.PADDING, y, Theme.TEXT_MUTED, false);
+			y += 14;
+			if (party.missingHostTrack()) {
+				canvas.text("Host is playing a track you don't have.",
+						main.x() + Theme.PADDING, y, 0xFFE0A44C, false);
+				y += 13;
+			}
+		}
+
+		canvas.text("In the party", main.x() + Theme.PADDING, y, Theme.TEXT_SECONDARY, false);
+		y += 13;
+		List<PartyMember> members = party.members();
+		int limit = Math.max(0, Math.min(members.size(), (partyActionButtonRect().y() - 6 - y) / 11));
+		for (int i = 0; i < limit; i++) {
+			PartyMember member = members.get(i);
+			boolean host = member.id().equals(party.hostId());
+			canvas.fill(main.x() + Theme.PADDING, y + 2, main.x() + Theme.PADDING + 3, y + 5,
+					host ? Theme.ACCENT : Theme.TEXT_MUTED);
+			String label = member.displayName() + (host ? "  (host)" : "");
+			canvas.text(canvas.ellipsize(label, main.w() - Theme.PADDING * 2 - 8),
+					main.x() + Theme.PADDING + 8, y, Theme.TEXT_PRIMARY, false);
+			y += 11;
+		}
+		if (members.size() > limit) {
+			canvas.text("+ " + (members.size() - limit) + " more", main.x() + Theme.PADDING + 8, y,
+					Theme.TEXT_MUTED, false);
+		}
+
+		drawButton(canvas, mouseX, mouseY, partyActionButtonRect(),
+				party.isHost() ? "End party" : "Leave", false);
+		if (party.connectionError()) {
+			Rect action = partyActionButtonRect();
+			canvas.text("Reconnecting...", action.right() + 8,
+					action.y() + (action.h() - canvas.lineHeight()) / 2 + 1, Theme.TEXT_MUTED, false);
+		}
+	}
+
+	private void drawInput(SantoraCanvas canvas, Rect field, String text, boolean focused,
+			String placeholder) {
+		canvas.fill(field.x(), field.y(), field.right(), field.bottom(), Theme.INPUT_BG);
+		canvas.outline(field.x(), field.y(), field.w(), field.h(),
+				focused ? Theme.ACCENT : Theme.DIVIDER);
+		int textY = field.y() + (field.h() - canvas.lineHeight()) / 2 + 1;
+		if (text.isEmpty() && !focused) {
+			canvas.text(canvas.ellipsize(placeholder, field.w() - 8), field.x() + 4, textY,
+					Theme.TEXT_MUTED, false);
+			return;
+		}
+		boolean caret = focused && System.currentTimeMillis() / 400 % 2 == 0;
+		canvas.text(canvas.ellipsize(text, field.w() - 8) + (caret ? "_" : ""), field.x() + 4, textY,
+				Theme.TEXT_PRIMARY, false);
+	}
+
+	private void clickParty(int mouseX, int mouseY) {
+		PartyController party = PartyController.get();
+		if (party.isHost() || party.isMember()) {
+			if (party.isHost() && partyCodeBoxRect().contains(mouseX, mouseY)) {
+				Santora.copyToClipboard(party.code());
+				partyCodeCopiedAt = System.currentTimeMillis();
+				return;
+			}
+			if (partyActionButtonRect().contains(mouseX, mouseY)) {
+				party.leaveParty();
+			}
+			return;
+		}
+		if (party.connecting()) {
+			if (partyActionButtonRect().contains(mouseX, mouseY)) {
+				party.leaveParty();
+			}
+			return;
+		}
+		if (partyNameFieldRect().contains(mouseX, mouseY)) {
+			partyFocus = PARTY_FOCUS_NAME;
+		} else if (partyCodeFieldRect().contains(mouseX, mouseY)) {
+			partyFocus = PARTY_FOCUS_CODE;
+		} else if (partyHostButtonRect().contains(mouseX, mouseY)) {
+			commitPartyConfig();
+			party.createParty();
+			partyFocus = PARTY_FOCUS_NONE;
+		} else if (partyJoinButtonRect().contains(mouseX, mouseY)) {
+			submitJoin();
+		} else {
+			partyFocus = PARTY_FOCUS_NONE;
+		}
+	}
+
+	private void submitJoin() {
+		commitPartyConfig();
+		PartyController.get().joinParty(partyCodeInput.toString());
+		partyFocus = PARTY_FOCUS_NONE;
+	}
+
+	private void commitPartyConfig() {
+		engine.config().setDisplayName(partyNameInput.toString());
+		Santora.saveConfig();
+	}
+
+	private StringBuilder partyBuffer() {
+		return switch (partyFocus) {
+			case PARTY_FOCUS_NAME -> partyNameInput;
+			case PARTY_FOCUS_CODE -> partyCodeInput;
+			default -> null;
+		};
+	}
+
 	// Placing the now playing overlay
 	private Rect overlayCardRect() {
 		SantoraConfig config = engine.config();
@@ -1032,7 +1287,8 @@ public final class SantoraUi {
 				boolean isPlaying = playing != null && playing.soundPath().equals(track.soundPath());
 				boolean hover = list.contains(mouseX, mouseY)
 						&& mouseY >= rowY && mouseY < rowY + rowH;
-				boolean reorderable = view == View.QUEUE && index - 1 >= queueBase;
+				boolean reorderable = view == View.QUEUE && index - 1 >= queueBase
+						&& PartyController.get().canControlPlayback();
 				boolean dragged = dragging && reorderable && index - 1 - queueBase == dragIndex;
 
 				if (dragged) {
@@ -1152,6 +1408,7 @@ public final class SantoraUi {
 	private void renderDeck(SantoraCanvas canvas, int mouseX, int mouseY) {
 		Rect deck = deckRect();
 		Track track = engine.currentTrack();
+		boolean controls = PartyController.get().canControlPlayback();
 
 		canvas.fill(deck.x(), deck.y() + Theme.PROGRESS_STRIP_HEIGHT, deck.right(), deck.bottom(),
 				Theme.DECK);
@@ -1178,14 +1435,16 @@ public final class SantoraUi {
 		int cy = deckCenterY();
 
 		Rect next = deckNextRect();
-		drawTriangleRight(canvas, next.x(), cy, 9, transportColor(next, mouseX, mouseY, true));
+		drawTriangleRight(canvas, next.x(), cy, 9, transportColor(next, mouseX, mouseY, controls));
 		canvas.fill(next.x() + 6, cy - 4, next.x() + 8, cy + 5,
-				transportColor(next, mouseX, mouseY, true));
+				transportColor(next, mouseX, mouseY, controls));
 
 		Rect play = deckPlayRect();
-		boolean playHover = play.contains(mouseX, mouseY, 2);
-		canvas.fill(play.x(), play.y(), play.right(), play.bottom(),
-				playHover ? Theme.blend(Theme.ACCENT, 0xFFFFFFFF, 0.15f) : Theme.ACCENT);
+		boolean playHover = controls && play.contains(mouseX, mouseY, 2);
+		int playColor = controls
+				? (playHover ? Theme.blend(Theme.ACCENT, 0xFFFFFFFF, 0.15f) : Theme.ACCENT)
+				: Theme.PROGRESS_TRACK;
+		canvas.fill(play.x(), play.y(), play.right(), play.bottom(), playColor);
 		if (engine.isPaused() || track == null) {
 			drawTriangleRight(canvas, play.x() + 6, cy, 7, Theme.ON_ACCENT);
 		} else {
@@ -1194,7 +1453,7 @@ public final class SantoraUi {
 		}
 
 		Rect prev = deckPrevRect();
-		boolean prevEnabled = engine.queue().hasPrevious();
+		boolean prevEnabled = controls && engine.queue().hasPrevious();
 		canvas.fill(prev.x() + 1, cy - 4, prev.x() + 3, cy + 5,
 				transportColor(prev, mouseX, mouseY, prevEnabled));
 		drawTriangleLeft(canvas, prev.x() + 4, cy, 9, transportColor(prev, mouseX, mouseY, prevEnabled));
@@ -1202,12 +1461,12 @@ public final class SantoraUi {
 		Rect repeat = deckRepeatRect();
 		RepeatMode mode = engine.queue().repeat();
 		drawRepeatIcon(canvas, repeat.x(), cy,
-				toggleColor(repeat, mouseX, mouseY, mode != RepeatMode.OFF),
+				controls ? toggleColor(repeat, mouseX, mouseY, mode != RepeatMode.OFF) : Theme.TEXT_MUTED,
 				mode == RepeatMode.ONE);
 
 		Rect shuffle = deckShuffleRect();
 		drawShuffleIcon(canvas, shuffle.x(), cy,
-				toggleColor(shuffle, mouseX, mouseY, engine.queue().shuffle()));
+				controls ? toggleColor(shuffle, mouseX, mouseY, engine.queue().shuffle()) : Theme.TEXT_MUTED);
 
 		renderDeckVolume(canvas, cy, mouseX, mouseY);
 
@@ -1480,20 +1739,23 @@ public final class SantoraUi {
 		String path = track.soundPath();
 		Album open = openAlbum();
 
+		boolean controls = PartyController.get().canControlPlayback();
 		List<MenuItem> items = new ArrayList<>();
-		if (view != View.QUEUE && open != null) {
-			items.add(new MenuItem("Play", () -> engine.playAlbum(open, row)));
-		} else {
-			items.add(new MenuItem("Play", () -> engine.playTrack(track)));
+		if (controls) {
+			if (view != View.QUEUE && open != null) {
+				items.add(new MenuItem("Play", () -> engine.playAlbum(open, row)));
+			} else {
+				items.add(new MenuItem("Play", () -> engine.playTrack(track)));
+			}
 		}
-		items.add(new MenuItem("Play next", () -> engine.queue().enqueueNext(track)));
-		items.add(new MenuItem("Add to queue", () -> engine.queue().enqueue(track)));
+		items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
+		items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
 		items.add(favoriteItem(path));
 		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(path)));
 
 		if (view == View.QUEUE) {
 			int queueIndex = row - queueRowOffset();
-			if (queueIndex >= 0 && queueIndex < engine.queue().userQueue().size()) {
+			if (controls && queueIndex >= 0 && queueIndex < engine.queue().userQueue().size()) {
 				items.add(new MenuItem("Remove from queue",
 						() -> engine.queue().removeFromQueue(queueIndex)));
 			}
@@ -1509,13 +1771,15 @@ public final class SantoraUi {
 
 	private void openTileMenu(Album album, int mouseX, int mouseY) {
 		List<MenuItem> items = new ArrayList<>();
-		items.add(new MenuItem("Play", () -> engine.playAlbum(album, 0)));
-		items.add(new MenuItem("Shuffle", () -> {
-			engine.setShuffle(true);
-			engine.playAlbum(album, -1);
-		}));
+		if (PartyController.get().canControlPlayback()) {
+			items.add(new MenuItem("Play", () -> engine.playAlbum(album, 0)));
+			items.add(new MenuItem("Shuffle", () -> {
+				engine.setShuffle(true);
+				engine.playAlbum(album, -1);
+			}));
+		}
 		items.add(new MenuItem("Add to queue",
-				() -> album.tracks().forEach(engine.queue()::enqueue)));
+				() -> album.tracks().forEach(track -> engine.requestEnqueue(track, false))));
 		if (album.kind() == AlbumKind.PLAYLIST && !album.id().equals(Playlists.FAVORITES_ID)) {
 			items.add(new MenuItem("Delete playlist", () -> {
 				engine.playlists().delete(album.id());
@@ -1527,8 +1791,8 @@ public final class SantoraUi {
 
 	private void openDeckMenu(Track track, int mouseX, int mouseY) {
 		List<MenuItem> items = new ArrayList<>();
-		items.add(new MenuItem("Play next", () -> engine.queue().enqueueNext(track)));
-		items.add(new MenuItem("Add to queue", () -> engine.queue().enqueue(track)));
+		items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
+		items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
 		items.add(favoriteItem(track.soundPath()));
 		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(track.soundPath())));
 		showMenu(items, mouseX, mouseY);
@@ -1647,7 +1911,7 @@ public final class SantoraUi {
 			return false;
 		}
 		if (railStatusRect().contains(mouseX, mouseY, 2)) {
-			if (engine.isManualMode()) {
+			if (engine.isManualMode() && PartyController.get().canControlPlayback()) {
 				engine.setManualMode(false);
 			}
 			return true;
@@ -1673,6 +1937,12 @@ public final class SantoraUi {
 			}
 			return;
 		}
+		if (next == View.PARTY) {
+			partyNameInput.setLength(0);
+			partyNameInput.append(engine.config().displayName());
+			partyCodeInput.setLength(0);
+			partyFocus = PARTY_FOCUS_NONE;
+		}
 		view = next;
 		openAlbumId = "";
 		gridScroll = 0;
@@ -1691,11 +1961,17 @@ public final class SantoraUi {
 			return true;
 		}
 
+		if (view == View.PARTY) {
+			clickParty(mouseX, mouseY);
+			return true;
+		}
+
 		if (engine.library().isEmpty()) {
 			return true;
 		}
 
-		if (view == View.QUEUE && engine.queue().upcomingCount() > 0
+		if (view == View.QUEUE && PartyController.get().canControlPlayback()
+				&& engine.queue().upcomingCount() > 0
 				&& clearQueueRect().contains(mouseX, mouseY)) {
 			engine.queue().clearUpcoming();
 			return true;
@@ -1727,12 +2003,18 @@ public final class SantoraUi {
 			return true;
 		}
 		if (playButtonRect().contains(mouseX, mouseY)) {
-			engine.playAlbum(open, 0);
+			if (PartyController.get().canControlPlayback()) {
+				engine.playAlbum(open, 0);
+			} else {
+				open.tracks().forEach(track -> engine.requestEnqueue(track, false));
+			}
 			return true;
 		}
 		if (shuffleButtonRect().contains(mouseX, mouseY)) {
-			engine.setShuffle(true);
-			engine.playAlbum(open, -1);
+			if (PartyController.get().canControlPlayback()) {
+				engine.setShuffle(true);
+				engine.playAlbum(open, -1);
+			}
 			return true;
 		}
 		clickTrackRows(mouseX, mouseY);
@@ -1749,15 +2031,22 @@ public final class SantoraUi {
 		int rowY = list.y() - trackScroll;
 		for (int i = 0; i < tracks.size(); i++) {
 			if (mouseY >= rowY && mouseY < rowY + Theme.ROW_HEIGHT) {
+				Track track = tracks.get(i);
+				if (!PartyController.get().canControlPlayback()) {
+					if (view != View.QUEUE) {
+						engine.requestEnqueue(track, false);
+					}
+					return;
+				}
 				int upIndex = i - queueRowOffset();
 				if (view == View.QUEUE && upIndex >= 0) {
 					dragIndex = upIndex;
 					dragArmY = mouseY;
 					dragging = false;
 				} else if (view == View.SEARCH) {
-					engine.playTrack(tracks.get(i));
+					engine.playTrack(track);
 				} else if (view == View.QUEUE || open == null) {
-					engine.queue().setCurrent(tracks.get(i));
+					engine.queue().setCurrent(track);
 				} else {
 					engine.playAlbum(open, i);
 				}
@@ -1874,7 +2163,12 @@ public final class SantoraUi {
 		if (deckVolumeRect().contains(mouseX, mouseY, 3)) {
 			activeSlider = SLIDER_DECK_VOLUME;
 			applySlider(activeSlider, mouseX);
-		} else if (deckPrevRect().contains(mouseX, mouseY, 3)) {
+			return true;
+		}
+		if (!PartyController.get().canControlPlayback()) {
+			return true;
+		}
+		if (deckPrevRect().contains(mouseX, mouseY, 3)) {
 			engine.previous();
 		} else if (deckPlayRect().contains(mouseX, mouseY, 2)) {
 			engine.togglePlayPause();
@@ -1955,6 +2249,28 @@ public final class SantoraUi {
 			return false;
 		}
 
+		if (view == View.PARTY && partyFocus != PARTY_FOCUS_NONE) {
+			StringBuilder target = partyBuffer();
+			switch (keyCode) {
+				case 259 -> { // backspace
+					if (target != null && target.length() > 0) {
+						target.deleteCharAt(target.length() - 1);
+					}
+				}
+				case 256 -> partyFocus = PARTY_FOCUS_NONE; // escape
+				case 257, 335 -> { // enter
+					if (partyFocus == PARTY_FOCUS_CODE) {
+						submitJoin();
+					} else {
+						partyFocus = PARTY_FOCUS_NONE;
+					}
+				}
+				default -> {
+				}
+			}
+			return true;
+		}
+
 		switch (keyCode) {
 			case 32 -> { // space
 				engine.togglePlayPause();
@@ -1992,6 +2308,15 @@ public final class SantoraUi {
 			if (event.isAllowedChatCharacter() && searchQuery.length() < SEARCH_INPUT_MAX) {
 				searchQuery += event.codepointAsString();
 				trackScroll = 0;
+			}
+			return true;
+		}
+		if (view == View.PARTY && menuItems == null && partyFocus != PARTY_FOCUS_NONE) {
+			StringBuilder target = partyBuffer();
+			int max = partyFocus == PARTY_FOCUS_CODE ? PARTY_CODE_MAX : PARTY_FIELD_MAX;
+			if (target != null && event.isAllowedChatCharacter() && target.length() < max) {
+				String typed = event.codepointAsString();
+				target.append(partyFocus == PARTY_FOCUS_CODE ? typed.toUpperCase(Locale.ROOT) : typed);
 			}
 			return true;
 		}

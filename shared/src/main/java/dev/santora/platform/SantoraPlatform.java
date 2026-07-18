@@ -13,6 +13,8 @@ public interface SantoraPlatform {
 
 	KeyMapping registerKeyMapping(KeyMapping mapping);
 
+	void setClipboard(String text);
+
 	final class Holder {
 		private static SantoraPlatform instance;
 

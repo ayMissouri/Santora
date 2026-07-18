@@ -31,6 +31,7 @@ and keep it playing wherever you go.
 - **Queue & playlists**: build a lineup, drag to reorder, save your own playlists, favorite what you love.
 - **Smooth playback**: crossfade tracks into each other, tune fade length, add a delay between songs.
 - **Now Playing HUD**: a draggable overlay that shows the current track anywhere on screen.
+- **Listen together**: start a party, share a code, and everyone hears the same music in sync.
 - **Make it yours**: pick a background and accent color, and dial the menu's opacity to see the game through it.
 - **Follows you everywhere**: keeps playing across dimensions, deaths, and world swaps.
 
@@ -69,6 +70,16 @@ Line up what plays next, drag tracks to reorder them and favorite the ones you l
 <div align="center">
   <img src="screenshots/queue.png" width="760" alt="The play queue" />
 </div>
+
+---
+
+## Listen together
+
+Start a party and everyone hears the **same music, in sync**. Anyone can add tracks to the
+shared queue and set their own volume, while the host stays in charge of skipping and pausing.
+
+Open **Party**, hit **Host party**, and share the code. Friends paste it into **Join** and
+they're listening along, on any server or world.
 
 ---
 

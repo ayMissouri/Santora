@@ -38,4 +38,9 @@ public final class SantoraEntrypoint implements ClientModInitializer, SantoraPla
 	public KeyMapping registerKeyMapping(KeyMapping mapping) {
 		return KeyMappingHelper.registerKeyMapping(mapping);
 	}
+
+	@Override
+	public void setClipboard(String text) {
+		Minecraft.getInstance().keyboardHandler.setClipboard(text);
+	}
 }
