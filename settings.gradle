@@ -12,10 +12,8 @@ pluginManagement {
 rootProject.name = 'santora'
 
 include 'core'
-include 'v1_21'
-include 'v1_21_2'
-include 'v1_21_6'
-include 'v1_21_9'
-include 'v1_21_11'
-include 'v26_1'
-include 'v26_2'
+
+['v1_21', 'v1_21_2', 'v1_21_6', 'v1_21_9', 'v1_21_11', 'v26_1', 'v26_2'].each {
+	include it
+	project(":${it}").projectDir = file("targets/${it}")
+}

@@ -14,15 +14,15 @@ sourceSets {
 	main {
 		java.srcDirs += [
 			rootProject.file('core/src/main/java'),
-			rootProject.file('shared/src/main/java'),
-			rootProject.file('sharedIdentifier/src/main/java'),
-			rootProject.file('sharedInputEvent/src/main/java'),
-			rootProject.file('sharedMusicGain/src/main/java'),
-			rootProject.file('shared26/src/main/java')
+			rootProject.file('shared/common/src/main/java'),
+			rootProject.file('shared/identifier/src/main/java'),
+			rootProject.file('shared/inputEvent/src/main/java'),
+			rootProject.file('shared/musicGain/src/main/java'),
+			rootProject.file('shared/mc26/src/main/java')
 		]
 		resources.srcDirs += [
-			rootProject.file('shared/src/main/resources'),
-			rootProject.file('sharedMusicGain/src/main/resources')
+			rootProject.file('shared/common/src/main/resources'),
+			rootProject.file('shared/musicGain/src/main/resources')
 		]
 	}
 }

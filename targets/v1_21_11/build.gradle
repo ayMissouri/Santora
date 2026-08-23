@@ -7,7 +7,7 @@ ext {
 	mcRange = minecraft_range_1211
 	mcLabel = minecraft_label_1211
 	fabricApi = fabric_api_version_1211
-	extraTrees = ['sharedIdentifier', 'sharedInputEvent', 'sharedGuiGraphics', 'sharedMusicGain']
+	extraTrees = ['identifier', 'inputEvent', 'guiGraphics', 'musicGain']
 }
 
 apply from: rootProject.file('gradle/mc121.gradle')

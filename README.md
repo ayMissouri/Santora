@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="shared/src/main/resources/assets/santora/icon.png" width="112" alt="Santora icon" />
+<img src="shared/common/src/main/resources/assets/santora/icon.png" width="112" alt="Santora icon" />
 
 # Santora
 

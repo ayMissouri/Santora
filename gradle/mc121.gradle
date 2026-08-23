@@ -8,14 +8,14 @@ repositories {
 
 sourceSets {
 	main {
-		java.srcDirs += ([
-			'core',
-			'shared'
-		] + project.ext.extraTrees).collect { rootProject.file("${it}/src/main/java") }
+		java.srcDirs += [rootProject.file('core/src/main/java')] +
+			(['common'] + project.ext.extraTrees).collect {
+				rootProject.file("shared/${it}/src/main/java")
+			}
 
 		resources.srcDirs += [
-			rootProject.file('shared/src/main/resources'),
-			rootProject.file('sharedMusicGain/src/main/resources')
+			rootProject.file('shared/common/src/main/resources'),
+			rootProject.file('shared/musicGain/src/main/resources')
 		]
 	}
 }
