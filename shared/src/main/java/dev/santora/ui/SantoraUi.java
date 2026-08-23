@@ -9,6 +9,7 @@ import dev.santora.core.model.MusicLibrary;
 import dev.santora.core.model.Playlists;
 import dev.santora.core.model.Track;
 import dev.santora.core.party.PartyMember;
+import dev.santora.core.party.PublicParty;
 import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
 import dev.santora.party.PartyController;
@@ -153,9 +154,17 @@ public final class SantoraUi {
 
 	private static final long PARTY_COPIED_MS = 1_500;
 
+	private static final int PARTY_TAB_SETUP = 0;
+	private static final int PARTY_TAB_PUBLIC = 1;
+	private static final int PARTY_ROW_HEIGHT = 20;
+
+	private static int partyTab = PARTY_TAB_SETUP;
+	private static int partyListScroll;
+
 	private int partyFocus = PARTY_FOCUS_NONE;
 	private final StringBuilder partyNameInput = new StringBuilder();
 	private final StringBuilder partyCodeInput = new StringBuilder();
+	private boolean partyNameLoaded;
 	private long partyCodeCopiedAt;
 
 	private int winX;
@@ -1027,19 +1036,57 @@ public final class SantoraUi {
 	}
 
 	// Party
+	private Rect partyTabPublicRect() {
+		Rect m = mainRect();
+		return new Rect(m.right() - Theme.PADDING - 44, m.y() + 4, 44, 13);
+	}
+
+	private Rect partyTabSetupRect() {
+		Rect pub = partyTabPublicRect();
+		return new Rect(pub.x() - 62, pub.y(), 62, 13);
+	}
+
 	private Rect partyNameFieldRect() {
 		Rect m = mainRect();
 		return new Rect(m.x() + Theme.PADDING + 40, m.y() + 30, m.w() - Theme.PADDING * 2 - 40, 14);
 	}
 
+	private Rect partyPublicBoxRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.y() + 48, 11, 11);
+	}
+
+	private Rect partyPublicHitRect() {
+		Rect box = partyPublicBoxRect();
+		return new Rect(box.x(), box.y(), 56, box.h());
+	}
+
 	private Rect partyHostButtonRect() {
 		Rect m = mainRect();
-		return new Rect(m.x() + Theme.PADDING, m.y() + 58, 96, 16);
+		return new Rect(m.x() + Theme.PADDING, m.y() + 64, 96, 16);
 	}
 
 	private Rect partyCodeFieldRect() {
 		Rect m = mainRect();
-		return new Rect(m.x() + Theme.PADDING, m.y() + 92, 96, 15);
+		return new Rect(m.x() + Theme.PADDING, m.y() + 107, 96, 15);
+	}
+
+	private Rect partyRefreshRect() {
+		Rect m = mainRect();
+		return new Rect(m.right() - Theme.PADDING - 40, m.y() + 20, 40, 11);
+	}
+
+	private Rect partyListRect() {
+		Rect m = mainRect();
+		int top = m.y() + 34;
+		return new Rect(m.x() + Theme.PADDING, top, m.w() - Theme.PADDING * 2,
+				Math.max(0, m.bottom() - Theme.PADDING - top));
+	}
+
+	private Rect partyListRowRect(int index) {
+		Rect list = partyListRect();
+		return new Rect(list.x(), list.y() + index * PARTY_ROW_HEIGHT - partyListScroll,
+				list.w(), PARTY_ROW_HEIGHT);
 	}
 
 	private Rect partyJoinButtonRect() {
@@ -1061,18 +1108,69 @@ public final class SantoraUi {
 		Rect main = mainRect();
 		PartyController party = PartyController.get();
 
+		if (!partyNameLoaded) {
+			partyNameLoaded = true;
+			partyNameInput.append(engine.config().displayName());
+		}
+
 		canvas.text("Listen Together", main.x() + Theme.PADDING, main.y() + 7,
 				Theme.TEXT_PRIMARY, false);
 
 		if (party.isHost() || party.isMember()) {
 			renderPartyActive(canvas, main, party, mouseX, mouseY);
-		} else if (party.connecting()) {
+			return;
+		}
+		if (party.connecting()) {
 			canvas.textCentered("Connecting to the relay...", main.x() + main.w() / 2,
 					main.y() + main.h() / 2 - 12, Theme.TEXT_SECONDARY);
 			drawButton(canvas, mouseX, mouseY, partyActionButtonRect(), "Cancel", false);
+			return;
+		}
+
+		drawTab(canvas, mouseX, mouseY, partyTabSetupRect(), "Host / Join",
+				partyTab == PARTY_TAB_SETUP);
+		drawTab(canvas, mouseX, mouseY, partyTabPublicRect(), "Public",
+				partyTab == PARTY_TAB_PUBLIC);
+
+		if (partyTab == PARTY_TAB_PUBLIC) {
+			renderPublicParties(canvas, main, party, mouseX, mouseY);
 		} else {
 			renderPartySetup(canvas, main, party, mouseX, mouseY);
 		}
+	}
+
+	private void drawScoped(SantoraCanvas canvas, int x, int y, int maxWidth, String text,
+			String address, int baseColor) {
+		int split = address.isEmpty() ? -1 : text.indexOf(address);
+		if (split < 0) {
+			canvas.text(canvas.ellipsize(text, maxWidth), x, y, baseColor, false);
+			return;
+		}
+		int right = x + maxWidth;
+		int cursor = drawRun(canvas, text.substring(0, split), x, y, right, baseColor);
+		cursor = drawRun(canvas, address, cursor, y, right, Theme.ACCENT);
+		drawRun(canvas, text.substring(split + address.length()), cursor, y, right, baseColor);
+	}
+
+	private int drawRun(SantoraCanvas canvas, String text, int x, int y, int right, int color) {
+		if (text.isEmpty() || x >= right) {
+			return x;
+		}
+		String fitted = canvas.ellipsize(text, right - x);
+		canvas.text(fitted, x, y, color, false);
+		return x + canvas.textWidth(fitted);
+	}
+
+	private void drawTab(SantoraCanvas canvas, int mouseX, int mouseY, Rect rect, String label,
+			boolean active) {
+		boolean hover = rect.contains(mouseX, mouseY);
+		if (active || hover) {
+			canvas.fill(rect.x(), rect.y(), rect.right(), rect.bottom(),
+					active ? Theme.ROW_SELECTED : Theme.ROW_HOVER);
+		}
+		canvas.textCentered(label, rect.x() + rect.w() / 2,
+				rect.y() + (rect.h() - canvas.lineHeight()) / 2 + 1,
+				active ? Theme.ACCENT : (hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY));
 	}
 
 	private void renderPartySetup(SantoraCanvas canvas, Rect main, PartyController party,
@@ -1084,6 +1182,8 @@ public final class SantoraUi {
 		canvas.text("Name", main.x() + Theme.PADDING, name.y() + 3, Theme.TEXT_SECONDARY, false);
 		drawInput(canvas, name, partyNameInput.toString(), partyFocus == PARTY_FOCUS_NAME,
 				party.suggestedName());
+
+		renderPublicToggle(canvas, main, party, mouseX, mouseY);
 
 		drawButton(canvas, mouseX, mouseY, partyHostButtonRect(), "Host party", true);
 
@@ -1097,6 +1197,95 @@ public final class SantoraUi {
 			canvas.text(canvas.ellipsize("Couldn't connect: " + party.lastError(),
 					main.w() - Theme.PADDING * 2), main.x() + Theme.PADDING,
 					main.bottom() - 22, 0xFFE0665A, false);
+		}
+	}
+
+	private void renderPublicToggle(SantoraCanvas canvas, Rect main, PartyController party,
+			int mouseX, int mouseY) {
+		boolean on = engine.config().partyPublic();
+		boolean hover = partyPublicHitRect().contains(mouseX, mouseY, 2);
+		Rect box = partyPublicBoxRect();
+
+		canvas.fill(box.x(), box.y(), box.right(), box.bottom(), Theme.INPUT_BG);
+		canvas.outline(box.x(), box.y(), box.w(), box.h(),
+				on ? Theme.ACCENT : (hover ? Theme.TEXT_SECONDARY : Theme.DIVIDER));
+		if (on) {
+			canvas.fill(box.x() + 3, box.y() + 3, box.right() - 3, box.bottom() - 3, Theme.ACCENT);
+		}
+
+		int textY = box.y() + 2;
+		canvas.text("Public", box.right() + 6, textY,
+				on || hover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
+
+		int hintX = box.right() + 12 + canvas.textWidth("Public");
+		drawScoped(canvas, hintX, textY, main.right() - Theme.PADDING - hintX,
+				on ? "anyone " + party.serverScope() + " can find it" : "code only",
+				on ? party.serverAddress() : "", Theme.TEXT_MUTED);
+	}
+
+	private void renderPublicParties(SantoraCanvas canvas, Rect main, PartyController party,
+			int mouseX, int mouseY) {
+		party.browsePublic();
+
+		Rect refresh = partyRefreshRect();
+		drawScoped(canvas, main.x() + Theme.PADDING, main.y() + 21,
+				refresh.x() - main.x() - Theme.PADDING - 6,
+				"Parties " + party.serverScope(), party.serverAddress(), Theme.TEXT_MUTED);
+		canvas.textCentered("Refresh", refresh.x() + refresh.w() / 2, refresh.y() + 1,
+				refresh.contains(mouseX, mouseY, 2) ? Theme.ACCENT : Theme.TEXT_MUTED);
+
+		Rect list = partyListRect();
+		canvas.fill(list.x(), list.y(), list.right(), list.bottom(), Theme.INPUT_BG);
+
+		List<PublicParty> parties = party.publicParties();
+		if (parties.isEmpty()) {
+			renderEmptyPublicList(canvas, list, party);
+			return;
+		}
+
+		partyListScroll = clamp(partyListScroll, 0,
+				Math.max(0, parties.size() * PARTY_ROW_HEIGHT - list.h()));
+
+		canvas.pushScissor(list.x(), list.y(), list.w(), list.h());
+		for (int i = 0; i < parties.size(); i++) {
+			Rect row = partyListRowRect(i);
+			if (row.bottom() < list.y() || row.y() > list.bottom()) {
+				continue;
+			}
+			PublicParty entry = parties.get(i);
+			boolean hover = list.contains(mouseX, mouseY) && row.contains(mouseX, mouseY);
+			if (hover) {
+				canvas.fill(row.x(), row.y(), row.right(), row.bottom(), Theme.ROW_HOVER);
+			}
+
+			int centerY = row.y() + row.h() / 2;
+			canvas.fill(row.x() + 6, centerY - 2, row.x() + 9, centerY + 1,
+					hover ? Theme.ACCENT : Theme.TEXT_MUTED);
+
+			String right = hover ? "Join" : entry.memberCount() + " listening";
+			int rightWidth = canvas.textWidth(right);
+			int textY = row.y() + (row.h() - canvas.lineHeight()) / 2;
+			canvas.text(canvas.ellipsize(entry.displayHost(), row.w() - 26 - rightWidth),
+					row.x() + 14, textY, Theme.TEXT_PRIMARY, false);
+			canvas.text(right, row.right() - 6 - rightWidth, textY,
+					hover ? Theme.ACCENT : Theme.TEXT_MUTED, false);
+		}
+		canvas.popScissor();
+	}
+
+	private void renderEmptyPublicList(SantoraCanvas canvas, Rect list, PartyController party) {
+		int centerX = list.x() + list.w() / 2;
+		int centerY = list.y() + list.h() / 2;
+		if (party.connectionError()) {
+			canvas.textCentered("Can't reach the relay right now", centerX, centerY - 4,
+					Theme.TEXT_MUTED);
+		} else if (party.publicListLoaded()) {
+			canvas.textCentered("Nobody is hosting a public party here", centerX, centerY - 9,
+					Theme.TEXT_MUTED);
+			canvas.textCentered(canvas.ellipsize("Host one and tick Public so others can join.",
+					list.w() - 12), centerX, centerY + 3, Theme.TEXT_MUTED);
+		} else {
+			canvas.textCentered("Looking for parties...", centerX, centerY - 4, Theme.TEXT_MUTED);
 		}
 	}
 
@@ -1114,12 +1303,16 @@ public final class SantoraUi {
 			canvas.textCentered(party.code(), codeBox.x() + codeBox.w() / 2,
 					codeBox.y() + (codeBox.h() - canvas.lineHeight()) / 2 + 1, Theme.ACCENT);
 			boolean copied = System.currentTimeMillis() - partyCodeCopiedAt < PARTY_COPIED_MS;
+			boolean listed = !copied && !hover && party.hostingPublic();
 			String hint = copied ? "Copied!"
 					: hover ? "Click to copy"
+					: listed ? "Listed for everyone " + party.serverScope()
 					: "Share this code so friends can join.";
-			canvas.text(hint, codeBox.right() + 8,
-					codeBox.y() + (codeBox.h() - canvas.lineHeight()) / 2 + 1,
-					copied ? Theme.ACCENT : Theme.TEXT_MUTED, false);
+			int hintX = codeBox.right() + 8;
+			drawScoped(canvas, hintX, codeBox.y() + (codeBox.h() - canvas.lineHeight()) / 2 + 1,
+					main.right() - Theme.PADDING - hintX, hint,
+					listed ? party.serverAddress() : "",
+					copied ? Theme.ACCENT : Theme.TEXT_MUTED);
 			y += 24;
 		} else {
 			String host = party.hostName().isEmpty() ? "the host" : party.hostName();
@@ -1200,18 +1393,61 @@ public final class SantoraUi {
 			}
 			return;
 		}
+		if (partyTabSetupRect().contains(mouseX, mouseY)) {
+			partyTab = PARTY_TAB_SETUP;
+			partyFocus = PARTY_FOCUS_NONE;
+			party.stopBrowsing();
+			return;
+		}
+		if (partyTabPublicRect().contains(mouseX, mouseY)) {
+			partyTab = PARTY_TAB_PUBLIC;
+			partyListScroll = 0;
+			partyFocus = PARTY_FOCUS_NONE;
+			return;
+		}
+
+		if (partyTab == PARTY_TAB_PUBLIC) {
+			clickPublicParties(mouseX, mouseY, party);
+			return;
+		}
+
 		if (partyNameFieldRect().contains(mouseX, mouseY)) {
 			partyFocus = PARTY_FOCUS_NAME;
 		} else if (partyCodeFieldRect().contains(mouseX, mouseY)) {
 			partyFocus = PARTY_FOCUS_CODE;
+		} else if (partyPublicHitRect().contains(mouseX, mouseY, 2)) {
+			SantoraConfig config = engine.config();
+			config.setPartyPublic(!config.partyPublic());
+			Santora.saveConfig();
+			partyFocus = PARTY_FOCUS_NONE;
 		} else if (partyHostButtonRect().contains(mouseX, mouseY)) {
 			commitPartyConfig();
-			party.createParty();
+			party.createParty(engine.config().partyPublic());
 			partyFocus = PARTY_FOCUS_NONE;
 		} else if (partyJoinButtonRect().contains(mouseX, mouseY)) {
 			submitJoin();
 		} else {
 			partyFocus = PARTY_FOCUS_NONE;
+		}
+	}
+
+	private void clickPublicParties(int mouseX, int mouseY, PartyController party) {
+		if (partyRefreshRect().contains(mouseX, mouseY, 2)) {
+			party.refreshPublicList();
+			partyListScroll = 0;
+			return;
+		}
+		Rect list = partyListRect();
+		if (!list.contains(mouseX, mouseY)) {
+			return;
+		}
+		List<PublicParty> parties = party.publicParties();
+		for (int i = 0; i < parties.size(); i++) {
+			if (partyListRowRect(i).contains(mouseX, mouseY)) {
+				commitPartyConfig();
+				party.joinParty(parties.get(i).code());
+				return;
+			}
 		}
 	}
 
@@ -1969,8 +2205,12 @@ public final class SantoraUi {
 		if (next == View.PARTY) {
 			partyNameInput.setLength(0);
 			partyNameInput.append(engine.config().displayName());
+			partyNameLoaded = true;
 			partyCodeInput.setLength(0);
 			partyFocus = PARTY_FOCUS_NONE;
+			partyListScroll = 0;
+		} else if (view == View.PARTY) {
+			PartyController.get().stopBrowsing();
 		}
 		view = next;
 		openAlbumId = "";
@@ -2223,6 +2463,16 @@ public final class SantoraUi {
 		}
 		int step = (int) (-amount * 16);
 
+		if (view == View.PARTY) {
+			if (partyTab == PARTY_TAB_PUBLIC && !PartyController.get().inParty()) {
+				Rect list = partyListRect();
+				int max = Math.max(0,
+						PartyController.get().publicParties().size() * PARTY_ROW_HEIGHT - list.h());
+				partyListScroll = clamp(partyListScroll + step, 0, max);
+			}
+			return true;
+		}
+
 		if (view == View.SETTINGS) {
 			int max = Math.max(0, settingsContentHeight() - main.h());
 			settingsScroll = clamp(settingsScroll + step, 0, max);
@@ -2359,6 +2609,7 @@ public final class SantoraUi {
 	}
 
 	public void onClose() {
+		PartyController.get().stopBrowsing();
 		Santora.saveConfig();
 		Santora.savePlaylists();
 	}

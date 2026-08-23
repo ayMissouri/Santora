@@ -7,6 +7,7 @@ import dev.santora.core.party.FollowerSnapshot;
 import dev.santora.core.party.PartyMember;
 import dev.santora.core.party.PartyMessage;
 import dev.santora.core.party.PartySession;
+import dev.santora.core.party.PublicParty;
 import dev.santora.core.party.SyncAction;
 import dev.santora.core.party.SyncDecision;
 import dev.santora.engine.MusicEngine;
@@ -34,6 +35,12 @@ public final class PartyController implements PartyBridge {
 
 	private long seq;
 	private int lastQueueHash;
+	private boolean hostingPublic;
+	private boolean browsing;
+	private boolean publicListLoaded;
+	private long browseRefreshTicks;
+	private long browseIdleTicks;
+	private List<PublicParty> publicParties = List.of();
 	private long tickCounter;
 	private long lastReseekMono;
 	private long lastStartSeq = Long.MIN_VALUE;
@@ -93,6 +100,26 @@ public final class PartyController implements PartyBridge {
 		return missingHostTrack;
 	}
 
+	public boolean hostingPublic() {
+		return hostingPublic;
+	}
+
+	public List<PublicParty> publicParties() {
+		return publicParties;
+	}
+
+	public boolean publicListLoaded() {
+		return publicListLoaded;
+	}
+
+	public String serverScope() {
+		return ServerIdentity.scope();
+	}
+
+	public String serverAddress() {
+		return ServerIdentity.address();
+	}
+
 	public boolean connecting() {
 		return connection.status() == PartyConnection.Status.CONNECTING;
 	}
@@ -107,14 +134,56 @@ public final class PartyController implements PartyBridge {
 
 	// UI actions
 
-	public void createParty() {
+	public void createParty(boolean makePublic) {
 		String url = relayUrl();
 		if (url.isEmpty()) {
 			LOGGER.warn("[Santora] no relay URL configured");
 			return;
 		}
 		leaveQuietly();
-		connection.start(url, codec.create(displayName()), false);
+		hostingPublic = makePublic;
+		connection.start(url, codec.create(displayName(), makePublic, ServerIdentity.key()), false);
+	}
+
+	public void browsePublic() {
+		if (session.inParty()) {
+			return;
+		}
+		browseIdleTicks = 0;
+		if (browsing) {
+			return;
+		}
+		browsing = true;
+		publicParties = List.of();
+		publicListLoaded = false;
+		browseRefreshTicks = 0;
+		requestPublicList();
+	}
+
+	public void refreshPublicList() {
+		if (session.inParty()) {
+			return;
+		}
+		if (!browsing) {
+			browsePublic();
+			return;
+		}
+		browseIdleTicks = 0;
+		browseRefreshTicks = 0;
+		requestPublicList();
+	}
+
+	public void stopBrowsing() {
+		if (!browsing) {
+			return;
+		}
+		browsing = false;
+		publicParties = List.of();
+		publicListLoaded = false;
+		if (!session.inParty()) {
+			connection.stop();
+			lastStatus = PartyConnection.Status.OFFLINE;
+		}
 	}
 
 	public void joinParty(String code) {
@@ -162,6 +231,8 @@ public final class PartyController implements PartyBridge {
 			tickHost();
 		} else if (session.isMember()) {
 			tickFollower();
+		} else {
+			tickBrowse();
 		}
 	}
 
@@ -201,6 +272,11 @@ public final class PartyController implements PartyBridge {
 				connection.stop();
 				lastStatus = PartyConnection.Status.OFFLINE;
 			}
+		} else if (event instanceof RelayEvent.Rooms rooms) {
+			if (browsing) {
+				publicParties = rooms.parties();
+				publicListLoaded = true;
+			}
 		} else if (event instanceof RelayEvent.Message message) {
 			handlePayload(message.from(), message.payload());
 		} else if (event instanceof RelayEvent.ErrorEvent error) {
@@ -228,6 +304,41 @@ public final class PartyController implements PartyBridge {
 			session.onQueue(queue);
 		} else if (payload instanceof PartyMessage.Welcome welcome) {
 			session.onWelcome(welcome, monoMillis());
+		}
+	}
+
+	// Browsing public parties
+
+	private void tickBrowse() {
+		if (!browsing) {
+			return;
+		}
+		browseIdleTicks++;
+		if (browseIdleTicks > PartyProtocol.BROWSE_IDLE_TICKS) {
+			stopBrowsing();
+			return;
+		}
+		browseRefreshTicks++;
+		if (browseRefreshTicks >= PartyProtocol.BROWSE_REFRESH_TICKS) {
+			browseRefreshTicks = 0;
+			requestPublicList();
+		}
+	}
+
+	private void requestPublicList() {
+		String url = relayUrl();
+		if (url.isEmpty()) {
+			return;
+		}
+		String frame = codec.list(ServerIdentity.key());
+		if (connection.status() == PartyConnection.Status.OFFLINE) {
+			connection.start(url, frame, true);
+			return;
+		}
+		// Already up, or coming back up: the frame goes out now, or on the next open.
+		connection.setOpenFrame(frame);
+		if (connection.status() == PartyConnection.Status.CONNECTED) {
+			connection.send(frame);
 		}
 	}
 
@@ -331,6 +442,10 @@ public final class PartyController implements PartyBridge {
 	// Helpers
 
 	private void leaveQuietly() {
+		browsing = false;
+		publicParties = List.of();
+		publicListLoaded = false;
+		hostingPublic = false;
 		connection.stop();
 		session.reset();
 		engine.setFollower(false);

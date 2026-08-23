@@ -6,6 +6,8 @@ const MAX_MEMBERS = 200;
 const RATE_BURST = 40;
 const RATE_REFILL_PER_SEC = 20;
 const NAME_MAX = 24;
+const SERVER_KEY_MAX = 64;
+const LIST_MAX = 50;
 const CODE_LEN = 6;
 // No 0/O/1/I so the codes are clear.
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -22,10 +24,14 @@ interface Conn {
 interface Room {
 	code: string;
 	hostId: string;
+	hostName: string;
+	isPublic: boolean;
+	serverKey: string;
 	members: Map<string, Conn>;
 }
 
 const rooms = new Map<string, Room>();
+const publicRooms = new Map<string, Set<Room>>();
 const conns = new Map<WebSocket, Conn>();
 let idCounter = 0;
 
@@ -87,6 +93,8 @@ function onMessage(conn: Conn, data: RawData): void {
 			return onJoin(conn, msg);
 		case 'leave':
 			return leaveRoom(conn);
+		case 'list':
+			return onList(conn, msg);
 		case 'msg':
 			return onRelay(conn, msg);
 		default:
@@ -104,11 +112,56 @@ function onCreate(conn: Conn, msg: any): void {
 	}
 	conn.name = cleanName(msg.name);
 	const code = newCode();
-	const room: Room = { code, hostId: conn.id, members: new Map() };
+	const room: Room = {
+		code,
+		hostId: conn.id,
+		hostName: conn.name,
+		isPublic: msg.public === true,
+		serverKey: cleanServerKey(msg.server),
+		members: new Map(),
+	};
 	room.members.set(conn.id, conn);
 	conn.roomCode = code;
 	rooms.set(code, room);
+	if (room.isPublic && room.serverKey) {
+		listPublic(room);
+	}
 	send(conn.ws, { t: 'created', code, self: conn.id });
+}
+
+function onList(conn: Conn, msg: any): void {
+	const serverKey = cleanServerKey(msg.server);
+	const bucket = serverKey ? publicRooms.get(serverKey) : undefined;
+	const listed = bucket ? [...bucket] : [];
+	listed.sort((a, b) => b.members.size - a.members.size);
+	send(conn.ws, {
+		t: 'rooms',
+		rooms: listed.slice(0, LIST_MAX).map((room) => ({
+			code: room.code,
+			host: room.hostName,
+			count: room.members.size,
+		})),
+	});
+}
+
+function listPublic(room: Room): void {
+	let bucket = publicRooms.get(room.serverKey);
+	if (!bucket) {
+		bucket = new Set();
+		publicRooms.set(room.serverKey, bucket);
+	}
+	bucket.add(room);
+}
+
+function unlistPublic(room: Room): void {
+	const bucket = publicRooms.get(room.serverKey);
+	if (!bucket) {
+		return;
+	}
+	bucket.delete(room);
+	if (bucket.size === 0) {
+		publicRooms.delete(room.serverKey);
+	}
 }
 
 function onJoin(conn: Conn, msg: any): void {
@@ -176,6 +229,9 @@ function leaveRoom(conn: Conn): void {
 			member.roomCode = null;
 		}
 		rooms.delete(code);
+		if (room.isPublic) {
+			unlistPublic(room);
+		}
 	}
 }
 
@@ -209,6 +265,14 @@ function cleanName(name: unknown): string {
 	}
 	out = out.trim().slice(0, NAME_MAX);
 	return out || 'Player';
+}
+
+function cleanServerKey(value: unknown): string {
+	if (typeof value !== 'string') {
+		return '';
+	}
+	const key = value.trim().toLowerCase().slice(0, SERVER_KEY_MAX);
+	return /^[a-z0-9]+$/.test(key) ? key : '';
 }
 
 function newCode(): string {

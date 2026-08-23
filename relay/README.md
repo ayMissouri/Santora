@@ -4,6 +4,8 @@ A WebSocket relay for Santora's **Listen Together** parties. It matches
 people with the same party code and forwards messages between them, stamping each with a
 server timestamp so followers can stay in sync.
 
+Parties marked as **Public** are also kept in a directory the mod can browse.
+
 ## Where to put the address
 
 The mod comes with a public relay but if for whatever reason it does not work for you then you can host your own. </br> The relay address is **baked into the mod**, not configurable in game (yet?)

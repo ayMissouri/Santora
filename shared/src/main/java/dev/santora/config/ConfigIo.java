@@ -66,6 +66,7 @@ public final class ConfigIo {
 			config.setLastContextId(getString(json, "last_context_id", config.lastContextId()));
 			config.setLastTrackPath(getString(json, "last_track_path", config.lastTrackPath()));
 			config.setDisplayName(getString(json, "display_name", config.displayName()));
+			config.setPartyPublic(getBool(json, "party_public", config.partyPublic()));
 		} catch (Exception e) {
 			LOGGER.warn("[Santora] could not read {}; using defaults", path, e);
 		}
@@ -95,6 +96,7 @@ public final class ConfigIo {
 		json.addProperty("last_context_id", config.lastContextId());
 		json.addProperty("last_track_path", config.lastTrackPath());
 		json.addProperty("display_name", config.displayName());
+		json.addProperty("party_public", config.partyPublic());
 
 		Path path = configPath();
 		try {

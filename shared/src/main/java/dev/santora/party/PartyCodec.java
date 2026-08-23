@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.santora.core.party.PartyMember;
 import dev.santora.core.party.PartyMessage;
+import dev.santora.core.party.PublicParty;
 import dev.santora.core.play.RepeatMode;
 
 import java.util.ArrayList;
@@ -16,10 +17,19 @@ final class PartyCodec {
 
 	private final Gson gson = new Gson();
 
-	String create(String name) {
+	String create(String name, boolean makePublic, String serverKey) {
 		JsonObject o = envelope(PartyProtocol.T_CREATE);
 		o.addProperty("v", PartyProtocol.VERSION);
 		o.addProperty("name", name);
+		o.addProperty("public", makePublic);
+		o.addProperty("server", serverKey);
+		return gson.toJson(o);
+	}
+
+	String list(String serverKey) {
+		JsonObject o = envelope(PartyProtocol.T_LIST);
+		o.addProperty("v", PartyProtocol.VERSION);
+		o.addProperty("server", serverKey);
 		return gson.toJson(o);
 	}
 
@@ -101,6 +111,7 @@ final class PartyCodec {
 				yield member == null ? new RelayEvent.Ignored() : new RelayEvent.PeerJoin(member);
 			}
 			case PartyProtocol.T_PEER_LEAVE -> new RelayEvent.PeerLeave(str(o, "id", ""));
+			case PartyProtocol.T_ROOMS -> new RelayEvent.Rooms(rooms(o.get("rooms")));
 			case PartyProtocol.T_ERROR -> new RelayEvent.ErrorEvent(str(o, "reason", "error"));
 			case PartyProtocol.T_MSG -> {
 				PartyMessage payload = payload(o.get("data"));
@@ -169,6 +180,27 @@ final class PartyCodec {
 		JsonObject o = element.getAsJsonObject();
 		String id = str(o, "id", "");
 		return id.isEmpty() ? null : new PartyMember(id, sanitize(str(o, "name", "")));
+	}
+
+	private List<PublicParty> rooms(JsonElement element) {
+		List<PublicParty> out = new ArrayList<>();
+		if (element == null || !element.isJsonArray()) {
+			return out;
+		}
+		for (JsonElement item : element.getAsJsonArray()) {
+			if (out.size() >= PartyProtocol.ROOM_LIMIT) {
+				break;
+			}
+			if (!item.isJsonObject()) {
+				continue;
+			}
+			JsonObject o = item.getAsJsonObject();
+			String code = str(o, "code", "");
+			if (!code.isEmpty()) {
+				out.add(new PublicParty(code, sanitize(str(o, "host", "")), (int) lng(o, "count", 1)));
+			}
+		}
+		return out;
 	}
 
 	private List<PartyMember> members(JsonElement element) {

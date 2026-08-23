@@ -2,6 +2,7 @@ package dev.santora.party;
 
 import dev.santora.core.party.PartyMember;
 import dev.santora.core.party.PartyMessage;
+import dev.santora.core.party.PublicParty;
 
 import java.util.List;
 
@@ -20,6 +21,9 @@ sealed interface RelayEvent {
 	}
 
 	record Message(String from, long serverTime, PartyMessage payload) implements RelayEvent {
+	}
+
+	record Rooms(List<PublicParty> parties) implements RelayEvent {
 	}
 
 	record ErrorEvent(String reason) implements RelayEvent {

@@ -37,6 +37,7 @@ public final class SantoraConfig {
 	private String lastTrackPath = "";
 
 	private String displayName = "";
+	private boolean partyPublic = false;
 
 	public boolean crossfadeOn() {
 		return crossfadeOn;
@@ -234,6 +235,14 @@ public final class SantoraConfig {
 
 	public void setDisplayName(String name) {
 		this.displayName = name == null ? "" : name.trim();
+	}
+
+	public boolean partyPublic() {
+		return partyPublic;
+	}
+
+	public void setPartyPublic(boolean partyPublic) {
+		this.partyPublic = partyPublic;
 	}
 
 	public boolean crossfadeEnabled() {
