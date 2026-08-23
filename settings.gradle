@@ -13,4 +13,5 @@ rootProject.name = 'santora'
 
 include 'core'
 include 'v1211'
+include 'v261'
 include 'v262'

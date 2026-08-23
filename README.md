@@ -11,7 +11,7 @@ and keep it playing wherever you go.
 
 <br />
 
-![Minecraft 1.21.11 | 26.2](https://img.shields.io/badge/Minecraft-1.21.11%20%7C%2026.2-4C9F70?style=flat-square)
+![Minecraft 1.21.11 | 26.1 | 26.2](https://img.shields.io/badge/Minecraft-1.21.11%20%7C%2026.1%20%7C%2026.2-4C9F70?style=flat-square)
 ![Loader: Fabric](https://img.shields.io/badge/Loader-Fabric-DBB668?style=flat-square)
 ![Side: Client](https://img.shields.io/badge/Side-Client--only-4C9BE3?style=flat-square)
 ![Java 21 | 25](https://img.shields.io/badge/Java-21%20%7C%2025-E3A44C?style=flat-square)
@@ -146,12 +146,14 @@ control Santora's volume independently of the rest of the game.
 ## Build it yourself
 
 ```bash
-./gradlew buildAll          # both targets → dist/mc<version>/
+./gradlew buildAll          # every target → dist/mc<version>/
 ./gradlew :v262:build       # just 26.2
+./gradlew :v261:build       # just 26.1
 ./gradlew :v1211:build      # just 1.21.11
 ```
 
-As of now Santora only works on **1.21.11** and **26.2**, more versions will be supported in the future.
+As of now Santora works on **1.21.11**, **26.1** and **26.2**, more versions will be supported in the future.
+26.1 covers 26.1, 26.1.1 and 26.1.2.
 
 ---
 
