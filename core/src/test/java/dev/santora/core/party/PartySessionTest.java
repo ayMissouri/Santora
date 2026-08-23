@@ -12,11 +12,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PartySessionTest {
 
 	private static PartyMessage.NowPlaying now(String path, long seq) {
-		return new PartyMessage.NowPlaying(path, 0, false, false, RepeatMode.OFF, seq);
+		return new PartyMessage.NowPlaying(path, 0, false, false, RepeatMode.OFF, true, seq);
+	}
+
+	private static PartyMessage.NowPlaying now(String path, long seq, boolean guestQueue) {
+		return new PartyMessage.NowPlaying(path, 0, false, false, RepeatMode.OFF, guestQueue, seq);
 	}
 
 	private static PartyMessage.QueueSnapshot queue(List<String> upcoming, long seq) {
 		return new PartyMessage.QueueSnapshot(upcoming, "album:x", seq);
+	}
+
+	private static PartySession joinedSession() {
+		PartySession session = new PartySession();
+		session.onJoined("ABCDEF", "m2", "Bob", "h1", List.of(new PartyMember("h1", "Alice")));
+		return session;
 	}
 
 	@Test
@@ -107,5 +117,43 @@ class PartySessionTest {
 		session.onWelcome(new PartyMessage.Welcome(now("a", 2), queue(List.of("x"), 2)), 500);
 		assertEquals("a", session.lastNow().soundPath());
 		assertEquals(List.of("x"), session.upcomingMirror());
+	}
+
+	@Test
+	void hostAndSoloAlwaysQueue() {
+		PartySession solo = new PartySession();
+		assertTrue(solo.canQueue());
+
+		PartySession host = new PartySession();
+		host.onCreated("ABCDEF", "h1", "Alice");
+		assertTrue(host.canQueue());
+	}
+
+	@Test
+	void memberQueuesUntilTheHostSaysOtherwise() {
+		PartySession session = joinedSession();
+		assertTrue(session.canQueue(), "assume yes before the first broadcast");
+
+		session.onNow(now("a", 1, false), 1_000);
+		assertFalse(session.canQueue());
+
+		session.onNow(now("a", 2, true), 2_000);
+		assertTrue(session.canQueue());
+	}
+
+	@Test
+	void staleBroadcastDoesNotFlipTheQueueRule() {
+		PartySession session = joinedSession();
+		session.onNow(now("a", 5, false), 1_000);
+		session.onNow(now("a", 4, true), 2_000);
+		assertFalse(session.canQueue());
+	}
+
+	@Test
+	void leavingRestoresQueueing() {
+		PartySession session = joinedSession();
+		session.onNow(now("a", 1, false), 1_000);
+		session.reset();
+		assertTrue(session.canQueue());
 	}
 }

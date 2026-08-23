@@ -38,6 +38,7 @@ public final class SantoraConfig {
 
 	private String displayName = "";
 	private boolean partyPublic = false;
+	private boolean partyGuestQueue = true;
 
 	public boolean crossfadeOn() {
 		return crossfadeOn;
@@ -243,6 +244,14 @@ public final class SantoraConfig {
 
 	public void setPartyPublic(boolean partyPublic) {
 		this.partyPublic = partyPublic;
+	}
+
+	public boolean partyGuestQueue() {
+		return partyGuestQueue;
+	}
+
+	public void setPartyGuestQueue(boolean partyGuestQueue) {
+		this.partyGuestQueue = partyGuestQueue;
 	}
 
 	public boolean crossfadeEnabled() {

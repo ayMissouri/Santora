@@ -77,6 +77,7 @@ Line up what plays next, drag tracks to reorder them and favorite the ones you l
 
 Start a party and everyone hears the **same music, in sync**. Anyone can add tracks to the
 shared queue and set their own volume, while the host stays in charge of skipping and pausing.
+As the host you can make it so only you can add tracks to the queue too.
 
 Open **Party**, hit **Host party**, and share the code. Friends paste it into **Join** and
 they're listening along, on any server or world.

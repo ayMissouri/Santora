@@ -7,7 +7,7 @@ import java.util.List;
 public sealed interface PartyMessage {
 
 	record NowPlaying(String soundPath, long positionMillis, boolean paused,
-			boolean shuffle, RepeatMode repeat, long seq) implements PartyMessage {
+			boolean shuffle, RepeatMode repeat, boolean guestQueue, long seq) implements PartyMessage {
 	}
 
 	record QueueSnapshot(List<String> upcoming, String contextId, long seq) implements PartyMessage {

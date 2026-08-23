@@ -634,7 +634,9 @@ public final class SantoraUi {
 				art.y() + 2 + canvas.lineHeight() + 3, Theme.TEXT_SECONDARY, false);
 
 		boolean controls = PartyController.get().canControlPlayback();
-		drawButton(canvas, mouseX, mouseY, playButtonRect(), controls ? "Play" : "Add all", true);
+		if (controls || PartyController.get().canQueue()) {
+			drawButton(canvas, mouseX, mouseY, playButtonRect(), controls ? "Play" : "Add all", true);
+		}
 		if (controls) {
 			drawButton(canvas, mouseX, mouseY, shuffleButtonRect(), "Shuffle", false);
 		}
@@ -1099,6 +1101,16 @@ public final class SantoraUi {
 		return new Rect(m.x() + Theme.PADDING, m.bottom() - 22, 96, 16);
 	}
 
+	private Rect partyGuestQueueBoxRect() {
+		Rect m = mainRect();
+		return new Rect(m.x() + Theme.PADDING, m.y() + 62, 11, 11);
+	}
+
+	private Rect partyGuestQueueHitRect() {
+		Rect box = partyGuestQueueBoxRect();
+		return new Rect(box.x(), box.y(), 150, box.h());
+	}
+
 	private Rect partyCodeBoxRect() {
 		Rect m = mainRect();
 		return new Rect(m.x() + Theme.PADDING, m.y() + 39, 92, 16);
@@ -1200,18 +1212,21 @@ public final class SantoraUi {
 		}
 	}
 
-	private void renderPublicToggle(SantoraCanvas canvas, Rect main, PartyController party,
-			int mouseX, int mouseY) {
-		boolean on = engine.config().partyPublic();
-		boolean hover = partyPublicHitRect().contains(mouseX, mouseY, 2);
-		Rect box = partyPublicBoxRect();
-
+	private void drawTickBox(SantoraCanvas canvas, Rect box, boolean on, boolean hover) {
 		canvas.fill(box.x(), box.y(), box.right(), box.bottom(), Theme.INPUT_BG);
 		canvas.outline(box.x(), box.y(), box.w(), box.h(),
 				on ? Theme.ACCENT : (hover ? Theme.TEXT_SECONDARY : Theme.DIVIDER));
 		if (on) {
 			canvas.fill(box.x() + 3, box.y() + 3, box.right() - 3, box.bottom() - 3, Theme.ACCENT);
 		}
+	}
+
+	private void renderPublicToggle(SantoraCanvas canvas, Rect main, PartyController party,
+			int mouseX, int mouseY) {
+		boolean on = engine.config().partyPublic();
+		boolean hover = partyPublicHitRect().contains(mouseX, mouseY, 2);
+		Rect box = partyPublicBoxRect();
+		drawTickBox(canvas, box, on, hover);
 
 		int textY = box.y() + 2;
 		canvas.text("Public", box.right() + 6, textY,
@@ -1313,15 +1328,27 @@ public final class SantoraUi {
 					main.right() - Theme.PADDING - hintX, hint,
 					listed ? party.serverAddress() : "",
 					copied ? Theme.ACCENT : Theme.TEXT_MUTED);
-			y += 24;
+			y += 23;
+
+			Rect queueBox = partyGuestQueueBoxRect();
+			boolean queueOn = party.guestQueue();
+			boolean queueHover = partyGuestQueueHitRect().contains(mouseX, mouseY, 2);
+			drawTickBox(canvas, queueBox, queueOn, queueHover);
+			canvas.text("Guests can add to the queue", queueBox.right() + 6, queueBox.y() + 2,
+					queueOn || queueHover ? Theme.TEXT_PRIMARY : Theme.TEXT_SECONDARY, false);
+			y += 16;
 		} else {
 			String host = party.hostName().isEmpty() ? "the host" : party.hostName();
 			canvas.text("Following " + host, main.x() + Theme.PADDING, y, Theme.TEXT_SECONDARY, false);
 			y += 13;
-			canvas.text("Only the host skips or pauses. You can add to the queue",
+			boolean canQueue = party.canQueue();
+			canvas.text(canQueue
+					? "Only the host skips or pauses. You can add to the queue"
+					: "The host picks the music and controls playback.",
 					main.x() + Theme.PADDING, y, Theme.TEXT_MUTED, false);
 			y += 10;
-			canvas.text("and set your own volume.", main.x() + Theme.PADDING, y, Theme.TEXT_MUTED, false);
+			canvas.text(canQueue ? "and set your own volume." : "You can still set your own volume.",
+					main.x() + Theme.PADDING, y, Theme.TEXT_MUTED, false);
 			y += 14;
 			if (party.missingHostTrack()) {
 				canvas.text("Host is playing a track you don't have.",
@@ -1380,6 +1407,11 @@ public final class SantoraUi {
 			if (party.isHost() && partyCodeBoxRect().contains(mouseX, mouseY)) {
 				Santora.copyToClipboard(party.code());
 				partyCodeCopiedAt = System.currentTimeMillis();
+				return;
+			}
+			if (party.isHost() && partyGuestQueueHitRect().contains(mouseX, mouseY, 2)) {
+				party.setGuestQueue(!party.guestQueue());
+				Santora.saveConfig();
 				return;
 			}
 			if (partyActionButtonRect().contains(mouseX, mouseY)) {
@@ -1550,7 +1582,7 @@ public final class SantoraUi {
 			int rowH = Theme.ROW_HEIGHT;
 			if (rowY + rowH >= list.y() && rowY <= list.bottom()) {
 				boolean isPlaying = playing != null && playing.soundPath().equals(track.soundPath());
-				boolean hover = list.contains(mouseX, mouseY)
+				boolean hover = rowsClickable() && list.contains(mouseX, mouseY)
 						&& mouseY >= rowY && mouseY < rowY + rowH;
 				boolean reorderable = view == View.QUEUE && index - 1 >= queueBase
 						&& PartyController.get().canControlPlayback();
@@ -1940,6 +1972,9 @@ public final class SantoraUi {
 	}
 
 	private void showMenu(List<MenuItem> items, int x, int y) {
+		if (items.isEmpty()) {
+			return;
+		}
 		menuItems = items;
 		menuX = x;
 		menuY = y;
@@ -2013,8 +2048,10 @@ public final class SantoraUi {
 				items.add(new MenuItem("Play", () -> engine.playTrack(track)));
 			}
 		}
-		items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
-		items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
+		if (PartyController.get().canQueue()) {
+			items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
+			items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
+		}
 		items.add(favoriteItem(path));
 		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(path)));
 
@@ -2043,8 +2080,10 @@ public final class SantoraUi {
 				engine.playAlbum(album, -1);
 			}));
 		}
-		items.add(new MenuItem("Add to queue",
-				() -> album.tracks().forEach(track -> engine.requestEnqueue(track, false))));
+		if (PartyController.get().canQueue()) {
+			items.add(new MenuItem("Add to queue",
+					() -> album.tracks().forEach(track -> engine.requestEnqueue(track, false))));
+		}
 		if (album.kind() == AlbumKind.PLAYLIST && !album.id().equals(Playlists.FAVORITES_ID)) {
 			items.add(new MenuItem("Delete playlist", () -> {
 				engine.playlists().delete(album.id());
@@ -2056,8 +2095,10 @@ public final class SantoraUi {
 
 	private void openDeckMenu(Track track, int mouseX, int mouseY) {
 		List<MenuItem> items = new ArrayList<>();
-		items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
-		items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
+		if (PartyController.get().canQueue()) {
+			items.add(new MenuItem("Play next", () -> engine.requestEnqueue(track, true)));
+			items.add(new MenuItem("Add to queue", () -> engine.requestEnqueue(track, false)));
+		}
 		items.add(favoriteItem(track.soundPath()));
 		items.add(new MenuItem("Add to playlist...", () -> showPlaylistPicker(track.soundPath())));
 		showMenu(items, mouseX, mouseY);
@@ -2274,7 +2315,7 @@ public final class SantoraUi {
 		if (playButtonRect().contains(mouseX, mouseY)) {
 			if (PartyController.get().canControlPlayback()) {
 				engine.playAlbum(open, 0);
-			} else {
+			} else if (PartyController.get().canQueue()) {
 				open.tracks().forEach(track -> engine.requestEnqueue(track, false));
 			}
 			return true;
@@ -2290,6 +2331,11 @@ public final class SantoraUi {
 		return true;
 	}
 
+	private boolean rowsClickable() {
+		PartyController party = PartyController.get();
+		return party.canControlPlayback() || (party.canQueue() && view != View.QUEUE);
+	}
+
 	private void clickTrackRows(int mouseX, int mouseY) {
 		Rect list = listRect();
 		if (!list.contains(mouseX, mouseY)) {
@@ -2302,7 +2348,7 @@ public final class SantoraUi {
 			if (mouseY >= rowY && mouseY < rowY + Theme.ROW_HEIGHT) {
 				Track track = tracks.get(i);
 				if (!PartyController.get().canControlPlayback()) {
-					if (view != View.QUEUE) {
+					if (rowsClickable()) {
 						engine.requestEnqueue(track, false);
 					}
 					return;

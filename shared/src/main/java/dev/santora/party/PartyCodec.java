@@ -60,6 +60,7 @@ final class PartyCodec {
 		o.addProperty("paused", n.paused());
 		o.addProperty("shuffle", n.shuffle());
 		o.addProperty("repeat", n.repeat().name());
+		o.addProperty("gq", n.guestQueue());
 		o.addProperty("seq", n.seq());
 		return o;
 	}
@@ -143,7 +144,8 @@ final class PartyCodec {
 			return null;
 		}
 		return new PartyMessage.NowPlaying(str(o, "path", ""), lng(o, "pos", 0), bool(o, "paused", false),
-				bool(o, "shuffle", false), repeat(str(o, "repeat", "OFF")), lng(o, "seq", -1));
+				bool(o, "shuffle", false), repeat(str(o, "repeat", "OFF")), bool(o, "gq", true),
+				lng(o, "seq", -1));
 	}
 
 	private PartyMessage.QueueSnapshot queuePayload(JsonObject o) {

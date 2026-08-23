@@ -44,6 +44,10 @@ public final class PartySession {
 		return role != PartyRole.MEMBER;
 	}
 
+	public boolean canQueue() {
+		return role != PartyRole.MEMBER || lastNow == null || lastNow.guestQueue();
+	}
+
 	public String code() {
 		return code;
 	}

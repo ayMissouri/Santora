@@ -13,7 +13,7 @@ class DriftCalculatorTest {
 	private static final long RESEEK_READY = DriftCalculator.MIN_RESEEK_INTERVAL_MS;
 
 	private static PartyMessage.NowPlaying host(String path, long pos, boolean paused) {
-		return new PartyMessage.NowPlaying(path, pos, paused, false, RepeatMode.OFF, 1);
+		return new PartyMessage.NowPlaying(path, pos, paused, false, RepeatMode.OFF, true, 1);
 	}
 
 	private static FollowerSnapshot playing(String path, long elapsed) {

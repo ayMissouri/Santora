@@ -72,6 +72,14 @@ public final class PartyController implements PartyBridge {
 		return session.canControlPlayback();
 	}
 
+	public boolean canQueue() {
+		return session.canQueue();
+	}
+
+	public boolean guestQueue() {
+		return engine.config().partyGuestQueue();
+	}
+
 	public String code() {
 		return session.code();
 	}
@@ -196,6 +204,14 @@ public final class PartyController implements PartyBridge {
 		connection.start(url, codec.join(normalized, displayName()), true);
 	}
 
+	/** Members learn this from the next now-playing broadcast, so nudge one out right away. */
+	public void setGuestQueue(boolean allowed) {
+		engine.config().setPartyGuestQueue(allowed);
+		if (session.isHost()) {
+			sendNow();
+		}
+	}
+
 	public void leaveParty() {
 		if (session.inParty()) {
 			connection.send(codec.leave());
@@ -212,7 +228,7 @@ public final class PartyController implements PartyBridge {
 
 	@Override
 	public void onMemberEnqueue(Track track, boolean next) {
-		if (session.isMember() && track != null) {
+		if (session.isMember() && session.canQueue() && track != null) {
 			connection.send(codec.message(session.hostId(),
 					codec.enqueue(new PartyMessage.RequestEnqueue(track.soundPath(), next))));
 		}
@@ -289,7 +305,7 @@ public final class PartyController implements PartyBridge {
 
 	private void handlePayload(String from, PartyMessage payload) {
 		if (payload instanceof PartyMessage.RequestEnqueue request) {
-			if (session.isHost()) {
+			if (session.isHost() && engine.config().partyGuestQueue()) {
 				engine.library().trackByPath(request.soundPath())
 						.ifPresent(track -> engine.requestEnqueue(track, request.next()));
 			}
@@ -385,11 +401,13 @@ public final class PartyController implements PartyBridge {
 	private PartyMessage.NowPlaying nowPlaying() {
 		Track track = engine.currentTrack();
 		boolean shuffle = engine.queue().shuffle();
+		boolean guestQueue = engine.config().partyGuestQueue();
 		if (track == null) {
-			return new PartyMessage.NowPlaying("", 0, false, shuffle, engine.queue().repeat(), ++seq);
+			return new PartyMessage.NowPlaying("", 0, false, shuffle, engine.queue().repeat(),
+					guestQueue, ++seq);
 		}
 		return new PartyMessage.NowPlaying(track.soundPath(), engine.elapsedMillis(), engine.isPaused(),
-				shuffle, engine.queue().repeat(), ++seq);
+				shuffle, engine.queue().repeat(), guestQueue, ++seq);
 	}
 
 	private void tickFollower() {
