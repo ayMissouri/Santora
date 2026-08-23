@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "dev.santora.mixin",
+	"plugin": "dev.santora.mixin.MusicGainMixinPlugin",
+	"client": [
+		"MusicManagerAccessor"
+	],
+	"mixins": [],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

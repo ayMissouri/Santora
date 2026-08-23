@@ -2,8 +2,6 @@ package dev.santora.ui;
 
 import dev.santora.platform.SantoraPlatform;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
@@ -29,24 +27,26 @@ public final class MenuAccess {
 	private MenuAccess() {
 	}
 
-	public static void install(KeyMapping openKey) {
+	public static void install() {
 		ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
 			if (screen instanceof SantoraScreenBase) {
 				return;
 			}
 
-			ScreenKeyboardEvents.allowKeyPress(screen).register((current, event) -> {
-				if (!openKey.matches(event) || !canOpenOver(current)) {
-					return true;
-				}
-				open(current);
-				return false;
-			});
+			SantoraPlatform.Holder.get().installOpenKeyListener(screen);
 
 			if (screen instanceof TitleScreen || screen instanceof PauseScreen) {
 				addButton(screen, width);
 			}
 		});
+	}
+
+	public static boolean openKeyPressed(Screen screen) {
+		if (!canOpenOver(screen)) {
+			return false;
+		}
+		open(screen);
+		return true;
 	}
 
 	private static void addButton(Screen screen, int width) {

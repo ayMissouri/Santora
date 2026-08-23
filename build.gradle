@@ -9,6 +9,6 @@ allprojects {
 
 tasks.register('buildAll') {
 	group = 'build'
-	description = 'Builds Santora for every supported Minecraft target (1.21.11, 26.1 and 26.2).'
-	dependsOn ':v1211:build', ':v261:build', ':v262:build'
+	description = 'Builds Santora for every supported Minecraft target (1.21 through 1.21.11, 26.1 and 26.2).'
+	dependsOn ':v1_21:build', ':v1_21_2:build', ':v1_21_6:build', ':v1_21_9:build', ':v1_21_11:build', ':v26_1:build', ':v26_2:build'
 }

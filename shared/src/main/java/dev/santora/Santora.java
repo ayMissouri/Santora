@@ -1,6 +1,5 @@
 package dev.santora;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
 import dev.santora.config.ConfigIo;
 import dev.santora.config.PlaylistIo;
@@ -14,7 +13,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.sounds.SoundManager;
-import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 
 public final class Santora {
@@ -28,10 +26,6 @@ public final class Santora {
 	private Santora() {
 	}
 
-	public static Identifier id(String path) {
-		return Identifier.fromNamespaceAndPath(MOD_ID, path);
-	}
-
 	public static void init(SantoraPlatform platform) {
 		SantoraPlatform.Holder.set(platform);
 		ConfigIo.load(MusicEngine.get().config());
@@ -39,14 +33,9 @@ public final class Santora {
 		Theme.refresh(MusicEngine.get().config());
 		MusicEngine.get().setPartyBridge(PartyController.get());
 
-		// this is to support both game versions.
-		openKey = platform.registerKeyMapping(new KeyMapping(
-				"key.santora.open",
-				InputConstants.Type.KEYSYM,
-				InputConstants.KEY_M,
-				KeyMapping.Category.register(id("keys"))));
+		openKey = platform.registerOpenKey();
 
-		MenuAccess.install(openKey);
+		MenuAccess.install();
 
 		if (MusicEngine.get().config().updateCheck()) {
 			UpdateChecker.get().check();

@@ -153,14 +153,27 @@ when the game starts and shows a toast if a newer version is out. Turn it off un
 ## Build it yourself
 
 ```bash
-./gradlew buildAll          # every target → dist/mc<version>/
-./gradlew :v262:build       # just 26.2
-./gradlew :v261:build       # just 26.1
-./gradlew :v1211:build      # just 1.21.11
+./gradlew buildAll          # every version
+./gradlew :v26_2:build      # 26.2
+./gradlew :v26_1:build      # 26.1
+./gradlew :v1_21_11:build   # 1.21.11
+./gradlew :v1_21_9:build    # 1.21.9 - 1.21.10
+./gradlew :v1_21_6:build    # 1.21.6 - 1.21.8
+./gradlew :v1_21_2:build    # 1.21.2 - 1.21.5
+./gradlew :v1_21:build      # 1.21 - 1.21.1
 ```
 
-As of now Santora works on **1.21.11**, **26.1** and **26.2**, more versions will be supported in the future.
-26.1 covers 26.1, 26.1.1 and 26.1.2.
+Santora works with **1.21.x** as well as **26.1** and **26.2**.
+
+| Download | Works on |
+| --- | --- |
+| `santora-mc1.21` | 1.21, 1.21.1 |
+| `santora-mc1.21.2` | 1.21.2, 1.21.3, 1.21.4, 1.21.5 |
+| `santora-mc1.21.6` | 1.21.6, 1.21.7, 1.21.8 |
+| `santora-mc1.21.9` | 1.21.9, 1.21.10 |
+| `santora-mc1.21.11` | 1.21.11 |
+| `santora-mc26.1` | 26.1, 26.1.1, 26.1.2 |
+| `santora-mc26.2` | 26.2 |
 
 ---
 

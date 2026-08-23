@@ -2,10 +2,12 @@ package dev.santora.platform;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.toasts.ToastManager;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.server.packs.resources.Resource;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface SantoraPlatform {
 
@@ -14,16 +16,28 @@ public interface SantoraPlatform {
 	void openScreen(Screen screen);
 
 	Screen currentScreen();
-	
+
 	List<AbstractWidget> widgetsOf(Screen screen);
 
-	KeyMapping registerKeyMapping(KeyMapping mapping);
+	KeyMapping registerOpenKey();
+
+	void installOpenKeyListener(Screen screen);
 
 	void setClipboard(String text);
 
 	String getClipboard();
 
-	ToastManager toastManager();
+	long TOAST_MILLIS = 10_000L;
+
+	void showToast(String title, String message);
+
+	boolean playMusic(SoundInstance instance);
+
+	void refreshMusicGains();
+
+	void resetMusicCategoryGain();
+
+	Optional<Resource> findResource(String id);
 
 	final class Holder {
 		private static SantoraPlatform instance;

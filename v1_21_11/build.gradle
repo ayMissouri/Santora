@@ -1,0 +1,13 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+ext {
+	mcVersion = minecraft_version_1211
+	mcRange = minecraft_range_1211
+	mcLabel = minecraft_label_1211
+	fabricApi = fabric_api_version_1211
+	extraTrees = ['sharedIdentifier', 'sharedInputEvent', 'sharedGuiGraphics', 'sharedMusicGain']
+}
+
+apply from: rootProject.file('gradle/mc121.gradle')

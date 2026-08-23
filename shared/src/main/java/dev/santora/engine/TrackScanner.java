@@ -8,7 +8,6 @@ import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.client.sounds.Weighted;
-import net.minecraft.resources.Identifier;
 import dev.santora.mixin.WeighedSoundEventsAccessor;
 
 import java.util.ArrayList;
@@ -31,8 +30,9 @@ public final class TrackScanner {
 		List<RawSound> raw = new ArrayList<>();
 		Map<String, PlayableSound> playable = new HashMap<>();
 
-		for (Identifier eventId : soundManager.getAvailableSounds()) {
-			if (!isMusicEvent(eventId)) {
+		// var, not the id type: Minecraft renamed ResourceLocation to Identifier in 1.21.11.
+		for (var eventId : soundManager.getAvailableSounds()) {
+			if (!isMusicEvent(eventId.toString())) {
 				continue;
 			}
 
@@ -56,8 +56,9 @@ public final class TrackScanner {
 		return I18n.get(key);
 	}
 
-	private static boolean isMusicEvent(Identifier eventId) {
-		String path = eventId.getPath();
+	private static boolean isMusicEvent(String eventId) {
+		int colon = eventId.indexOf(':');
+		String path = colon < 0 ? eventId : eventId.substring(colon + 1);
 		return path.startsWith("music.") || path.startsWith("music_disc.");
 	}
 

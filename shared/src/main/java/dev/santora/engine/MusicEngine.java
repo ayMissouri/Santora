@@ -11,15 +11,14 @@ import dev.santora.core.model.Track;
 import dev.santora.core.play.Fade;
 import dev.santora.core.play.PlayQueue;
 import dev.santora.core.play.RepeatMode;
-import dev.santora.mixin.MusicManagerAccessor;
 import dev.santora.mixin.SoundEngineAccessor;
 import dev.santora.mixin.SoundManagerAccessor;
+import dev.santora.platform.SantoraPlatform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 
 import java.io.InputStream;
@@ -172,22 +171,17 @@ public final class MusicEngine {
 		// Reset the default game music volume whenever control changes.
 		if (manual) {
 			mc.getMusicManager().stopPlaying();
-			resetMusicCategoryGain(mc);
+			SantoraPlatform.Holder.get().resetMusicCategoryGain();
 		} else {
 			stopAllVoices();
 			pendingResumeTrack = null;
 			paused = false;
 			resumeAtMs = 0;
 			queue.reset();
-			resetMusicCategoryGain(mc);
+			SantoraPlatform.Holder.get().resetMusicCategoryGain();
 		}
 
 		config.setWasManual(manual);
-	}
-
-	private void resetMusicCategoryGain(Minecraft mc) {
-		mc.getSoundManager().updateCategoryVolume(SoundSource.MUSIC, 1.0f);
-		((MusicManagerAccessor) mc.getMusicManager()).santora$setCurrentGain(1.0f);
 	}
 
 	// Playback controls
@@ -463,7 +457,6 @@ public final class MusicEngine {
 			return;
 		}
 
-		Minecraft mc = Minecraft.getInstance();
 		SantoraSoundInstance instance = new SantoraSoundInstance(sound.eventId(), sound.sound());
 		instance.setSeekMillis(seekMillis);
 
@@ -479,8 +472,8 @@ public final class MusicEngine {
 			instance.setGain(config.volume());
 		}
 
-		SoundEngine.PlayResult result = mc.getSoundManager().play(instance);
-		if (result == SoundEngine.PlayResult.NOT_STARTED) {
+		boolean started = SantoraPlatform.Holder.get().playMusic(instance);
+		if (!started) {
 			LOGGER.warn("[Santora] sound engine refused {}", track.soundPath());
 			current = null;
 			return;
@@ -560,10 +553,7 @@ public final class MusicEngine {
 	}
 
 	private void applyGains() {
-		Minecraft mc = Minecraft.getInstance();
-		if (mc != null) {
-			mc.getSoundManager().refreshCategoryVolume(SoundSource.MUSIC);
-		}
+		SantoraPlatform.Holder.get().refreshMusicGains();
 	}
 
 	private void setChannelPaused(Voice voice, boolean pause) {

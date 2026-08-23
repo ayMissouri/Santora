@@ -1,7 +1,5 @@
 package dev.santora.ui;
 
-import net.minecraft.resources.Identifier;
-
 public interface SantoraCanvas {
 
 	int width();
@@ -30,5 +28,5 @@ public interface SantoraCanvas {
 
 	void popScissor();
 
-	void blit(Identifier texture, int x, int y, int w, int h, float u0, float u1, float v0, float v1);
+	void blit(String texture, int x, int y, int w, int h, float u0, float u1, float v0, float v1);
 }

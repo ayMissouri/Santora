@@ -4,7 +4,6 @@
 	"package": "dev.santora.mixin",
 	"client": [
 		"MusicManagerMixin",
-		"MusicManagerAccessor",
 		"SoundEngineAccessor",
 		"SoundEngineMixin",
 		"SoundManagerAccessor",

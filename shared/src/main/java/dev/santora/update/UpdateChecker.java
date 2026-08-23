@@ -7,8 +7,6 @@ import dev.santora.Santora;
 import dev.santora.core.update.ModVersion;
 import dev.santora.platform.SantoraPlatform;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.gui.components.toasts.SystemToast;
-import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 
 import java.net.URI;
@@ -25,15 +23,12 @@ public final class UpdateChecker {
 		OFF, CHECKING, UP_TO_DATE, OUTDATED, FAILED
 	}
 
-	public static final String RELEASES_PAGE = "https://github.com/ayMissouri/Santora/releases/latest";
-
 	private static final String LATEST_RELEASE_API =
 			"https://api.github.com/repos/ayMissouri/Santora/releases/latest";
 
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final UpdateChecker INSTANCE = new UpdateChecker();
 
-	private static final long TOAST_MILLIS = 10_000L;
 
 	private final String current = readVersion();
 
@@ -43,7 +38,6 @@ public final class UpdateChecker {
 	private volatile int epoch;
 
 	private HttpClient client;
-	private SystemToast.SystemToastId toastId;
 
 	private UpdateChecker() {
 	}
@@ -92,9 +86,9 @@ public final class UpdateChecker {
 			return;
 		}
 		noticePending = false;
-		SystemToast.add(SantoraPlatform.Holder.get().toastManager(), toastId(),
-				Component.literal("Santora " + latest + " is out"),
-				Component.literal("You're on " + current));
+		SantoraPlatform.Holder.get().showToast(
+				"Santora " + latest + " is out",
+				"You're on " + current);
 	}
 
 	public String statusLine() {
@@ -102,7 +96,7 @@ public final class UpdateChecker {
 			case OFF -> "Checks are off";
 			case CHECKING -> "Looking for a newer version...";
 			case UP_TO_DATE -> "You're on the latest version";
-			case OUTDATED -> latest + " is out, grab it from GitHub";
+			case OUTDATED -> latest + " is out";
 			case FAILED -> "Couldn't reach GitHub";
 		};
 	}
@@ -183,13 +177,6 @@ public final class UpdateChecker {
 					.build();
 		}
 		return client;
-	}
-
-	private SystemToast.SystemToastId toastId() {
-		if (toastId == null) {
-			toastId = new SystemToast.SystemToastId(TOAST_MILLIS);
-		}
-		return toastId;
 	}
 
 	private static String reason(Throwable error) {

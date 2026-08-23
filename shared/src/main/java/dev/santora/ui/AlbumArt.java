@@ -2,8 +2,7 @@ package dev.santora.ui;
 
 import dev.santora.core.model.MusicUpdate;
 import dev.santora.core.model.Track;
-import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import dev.santora.platform.SantoraPlatform;
 import net.minecraft.server.packs.resources.Resource;
 
 import java.io.IOException;
@@ -14,7 +13,7 @@ import java.util.Optional;
 
 public final class AlbumArt {
 
-	private record Ref(Identifier texture, float u0, float u1, float v0, float v1) {
+	private record Ref(String texture, float u0, float u1, float v0, float v1) {
 	}
 
 	private static final Ref ABSENT = new Ref(null, 0, 0, 0, 0);
@@ -48,11 +47,7 @@ public final class AlbumArt {
 			return null;
 		}
 		Ref cached = CACHE.computeIfAbsent(artKey, key -> {
-			Identifier tex = Identifier.tryParse(key);
-			if (tex == null) {
-				return ABSENT;
-			}
-			Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(tex);
+			Optional<Resource> resource = SantoraPlatform.Holder.get().findResource(key);
 			if (resource.isEmpty()) {
 				return ABSENT;
 			}
@@ -61,7 +56,7 @@ public final class AlbumArt {
 			float vSpan = aspect < 1 ? aspect : 1f;
 			float u0 = (1f - uSpan) / 2f;
 			float v0 = (1f - vSpan) / 2f;
-			return new Ref(tex, u0, u0 + uSpan, v0, v0 + vSpan);
+			return new Ref(key, u0, u0 + uSpan, v0, v0 + vSpan);
 		});
 		return cached == ABSENT ? null : cached;
 	}

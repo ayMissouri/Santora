@@ -14,7 +14,6 @@ import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
 import dev.santora.party.PartyController;
 import dev.santora.update.UpdateChecker;
-import net.minecraft.client.input.CharacterEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -170,7 +169,6 @@ public final class SantoraUi {
 	private final StringBuilder partyCodeInput = new StringBuilder();
 	private boolean partyNameLoaded;
 	private long partyCodeCopiedAt;
-	private long updateLinkCopiedAt;
 
 	private int winX;
 	private int winY;
@@ -783,29 +781,17 @@ public final class SantoraUi {
 				"Tells you at launch when a new Santora is out",
 				config.updateCheck(), mouseX, mouseY);
 
-		renderUpdateRow(canvas, mouseX, mouseY);
+		renderUpdateRow(canvas);
 
 		canvas.popScissor();
 	}
 
-	private void renderUpdateRow(SantoraCanvas canvas, int mouseX, int mouseY) {
+	private void renderUpdateRow(SantoraCanvas canvas) {
 		UpdateChecker updates = UpdateChecker.get();
 		Rect rowRect = settingsRowRect(ROW_UPDATE_STATUS);
-		Rect copy = updateLinkRect();
-		boolean outdated = updates.updateAvailable();
 
 		renderSettingLabels(canvas, ROW_UPDATE_STATUS, "Version " + updates.currentVersion(),
-				updates.statusLine(), outdated ? copy.x() : rowRect.right());
-
-		if (outdated) {
-			boolean copied = System.currentTimeMillis() - updateLinkCopiedAt < PARTY_COPIED_MS;
-			drawButton(canvas, mouseX, mouseY, copy, copied ? "Copied!" : "Copy link", true);
-		}
-	}
-
-	private Rect updateLinkRect() {
-		Rect rowRect = settingsRowRect(ROW_UPDATE_STATUS);
-		return new Rect(rowRect.right() - 54, rowRect.y() + (rowRect.h() - 14) / 2, 54, 14);
+				updates.statusLine(), rowRect.right());
 	}
 
 	private void renderSettingsHeader(SantoraCanvas canvas, int row, String label) {
@@ -997,12 +983,6 @@ public final class SantoraUi {
 			} else {
 				UpdateChecker.get().stop();
 			}
-			return;
-		}
-		if (UpdateChecker.get().updateAvailable()
-				&& updateLinkRect().contains(mouseX, mouseY, 2)) {
-			Santora.copyToClipboard(UpdateChecker.RELEASES_PAGE);
-			updateLinkCopiedAt = System.currentTimeMillis();
 			return;
 		}
 		if (clickSwatches(mouseX, mouseY)) {
@@ -2673,19 +2653,19 @@ public final class SantoraUi {
 		}
 	}
 
-	public boolean charTyped(CharacterEvent event) {
+	public boolean charTyped(String typed, boolean allowed) {
 		if (movingOverlay) {
 			return true;
 		}
 		if (naming) {
-			if (event.isAllowedChatCharacter() && nameInput.length() < NAME_INPUT_MAX) {
-				nameInput.append(event.codepointAsString());
+			if (allowed && nameInput.length() < NAME_INPUT_MAX) {
+				nameInput.append(typed);
 			}
 			return true;
 		}
 		if (view == View.SEARCH && menuItems == null) {
-			if (event.isAllowedChatCharacter() && searchQuery.length() < SEARCH_INPUT_MAX) {
-				searchQuery += event.codepointAsString();
+			if (allowed && searchQuery.length() < SEARCH_INPUT_MAX) {
+				searchQuery += typed;
 				trackScroll = 0;
 			}
 			return true;
@@ -2693,8 +2673,7 @@ public final class SantoraUi {
 		if (view == View.PARTY && menuItems == null && partyFocus != PARTY_FOCUS_NONE) {
 			StringBuilder target = partyBuffer();
 			int max = partyFocus == PARTY_FOCUS_CODE ? PARTY_CODE_MAX : PARTY_FIELD_MAX;
-			if (target != null && event.isAllowedChatCharacter() && target.length() < max) {
-				String typed = event.codepointAsString();
+			if (target != null && allowed && target.length() < max) {
 				target.append(partyFocus == PARTY_FOCUS_CODE ? typed.toUpperCase(Locale.ROOT) : typed);
 			}
 			return true;
