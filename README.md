@@ -139,7 +139,7 @@ control Santora's volume independently of the rest of the game.
 1. Install **Fabric Loader** for your Minecraft version.
 2. Install **[Fabric API](https://modrinth.com/mod/fabric-api)**.
 3. Download the latest release and drop it into your mods folder.
-4. Launch the game and press **M** to open the player.
+4. Launch the game and press **M**, or press the **♪** button in the top right corner to open the player.
 
 ---
 

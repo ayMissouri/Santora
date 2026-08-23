@@ -7,6 +7,7 @@ import dev.santora.config.PlaylistIo;
 import dev.santora.engine.MusicEngine;
 import dev.santora.party.PartyController;
 import dev.santora.platform.SantoraPlatform;
+import dev.santora.ui.MenuAccess;
 import dev.santora.ui.Theme;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
@@ -44,6 +45,8 @@ public final class Santora {
 				InputConstants.KEY_M,
 				KeyMapping.Category.register(id("keys"))));
 
+		MenuAccess.install(openKey);
+
 		ClientTickEvents.END_CLIENT_TICK.register(Santora::onClientTick);
 
 		LOGGER.info("[Santora] initialised");
@@ -55,7 +58,7 @@ public final class Santora {
 		while (openKey.consumeClick()) {
 			SantoraPlatform platform = SantoraPlatform.Holder.get();
 			if (platform.currentScreen() == null) {
-				platform.openScreen(platform.createPlayerScreen());
+				platform.openScreen(platform.createPlayerScreen(null));
 			}
 		}
 
