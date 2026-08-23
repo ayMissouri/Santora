@@ -319,6 +319,7 @@ public final class MusicEngine {
 		// Mid-crossfade the fade tick reapplies gains anyway.
 		if (current != null && outgoing == null) {
 			current.instance.setGain(config.volume());
+			applyGains();
 		}
 	}
 
@@ -411,6 +412,7 @@ public final class MusicEngine {
 		if (current != null) {
 			current.instance.setGain(Fade.incoming(t) * config.volume());
 		}
+		applyGains();
 
 		if (t >= 1.0f) {
 			stopVoice(outgoing);
@@ -554,6 +556,13 @@ public final class MusicEngine {
 	public void reassertPause() {
 		if (paused && current != null) {
 			setChannelPaused(current, true);
+		}
+	}
+
+	private void applyGains() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc != null) {
+			mc.getSoundManager().refreshCategoryVolume(SoundSource.MUSIC);
 		}
 	}
 
