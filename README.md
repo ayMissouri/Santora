@@ -94,6 +94,8 @@ You can join your friends parties using a code. Everyone can add songs to the qu
 
 <img src="screenshots/listening_party2.png" width="100%" alt="Two players listening to the same track in sync" />
 
+<img src="screenshots/listening_party3.png" width="100%" alt="Party available to everyone when set to public" />
+
 ---
 
 ## Now Playing HUD
