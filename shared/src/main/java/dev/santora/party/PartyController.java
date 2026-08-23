@@ -204,7 +204,6 @@ public final class PartyController implements PartyBridge {
 		connection.start(url, codec.join(normalized, displayName()), true);
 	}
 
-	/** Members learn this from the next now-playing broadcast, so nudge one out right away. */
 	public void setGuestQueue(boolean allowed) {
 		engine.config().setPartyGuestQueue(allowed);
 		if (session.isHost()) {

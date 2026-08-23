@@ -13,6 +13,7 @@ import dev.santora.core.party.PublicParty;
 import dev.santora.core.play.RepeatMode;
 import dev.santora.engine.MusicEngine;
 import dev.santora.party.PartyController;
+import dev.santora.update.UpdateChecker;
 import net.minecraft.client.input.CharacterEvent;
 
 import java.util.ArrayList;
@@ -91,7 +92,10 @@ public final class SantoraUi {
 	private static final int ROW_HUD_BG = 13;
 	private static final int ROW_HUD_ACCENT = 14;
 	private static final int ROW_HUD_OPACITY = 15;
-	private static final int SETTINGS_ROW_COUNT = 16;
+	private static final int ROW_ABOUT_HEADER = 16;
+	private static final int ROW_UPDATE_ON = 17;
+	private static final int ROW_UPDATE_STATUS = 18;
+	private static final int SETTINGS_ROW_COUNT = 19;
 
 	private static final int SLIDER_NONE = 0;
 	private static final int SLIDER_CROSSFADE = 1;
@@ -166,6 +170,7 @@ public final class SantoraUi {
 	private final StringBuilder partyCodeInput = new StringBuilder();
 	private boolean partyNameLoaded;
 	private long partyCodeCopiedAt;
+	private long updateLinkCopiedAt;
 
 	private int winX;
 	private int winY;
@@ -772,7 +777,35 @@ public final class SantoraUi {
 				config.hudOpacity() / 100f, config.hudOpacity() + "%",
 				false, SLIDER_HUD_OPACITY, mouseX, mouseY);
 
+		renderSettingsHeader(canvas, ROW_ABOUT_HEADER, "ABOUT");
+
+		renderSwitchRow(canvas, ROW_UPDATE_ON, "Check for updates",
+				"Tells you at launch when a new Santora is out",
+				config.updateCheck(), mouseX, mouseY);
+
+		renderUpdateRow(canvas, mouseX, mouseY);
+
 		canvas.popScissor();
+	}
+
+	private void renderUpdateRow(SantoraCanvas canvas, int mouseX, int mouseY) {
+		UpdateChecker updates = UpdateChecker.get();
+		Rect rowRect = settingsRowRect(ROW_UPDATE_STATUS);
+		Rect copy = updateLinkRect();
+		boolean outdated = updates.updateAvailable();
+
+		renderSettingLabels(canvas, ROW_UPDATE_STATUS, "Version " + updates.currentVersion(),
+				updates.statusLine(), outdated ? copy.x() : rowRect.right());
+
+		if (outdated) {
+			boolean copied = System.currentTimeMillis() - updateLinkCopiedAt < PARTY_COPIED_MS;
+			drawButton(canvas, mouseX, mouseY, copy, copied ? "Copied!" : "Copy link", true);
+		}
+	}
+
+	private Rect updateLinkRect() {
+		Rect rowRect = settingsRowRect(ROW_UPDATE_STATUS);
+		return new Rect(rowRect.right() - 54, rowRect.y() + (rowRect.h() - 14) / 2, 54, 14);
 	}
 
 	private void renderSettingsHeader(SantoraCanvas canvas, int row, String label) {
@@ -955,6 +988,21 @@ public final class SantoraUi {
 		}
 		if (overlayMoveRect().contains(mouseX, mouseY, 2)) {
 			movingOverlay = true;
+			return;
+		}
+		if (settingsSwitchRect(ROW_UPDATE_ON).contains(mouseX, mouseY, 2)) {
+			config.setUpdateCheck(!config.updateCheck());
+			if (config.updateCheck()) {
+				UpdateChecker.get().check();
+			} else {
+				UpdateChecker.get().stop();
+			}
+			return;
+		}
+		if (UpdateChecker.get().updateAvailable()
+				&& updateLinkRect().contains(mouseX, mouseY, 2)) {
+			Santora.copyToClipboard(UpdateChecker.RELEASES_PAGE);
+			updateLinkCopiedAt = System.currentTimeMillis();
 			return;
 		}
 		if (clickSwatches(mouseX, mouseY)) {

@@ -9,6 +9,7 @@ import dev.santora.party.PartyController;
 import dev.santora.platform.SantoraPlatform;
 import dev.santora.ui.MenuAccess;
 import dev.santora.ui.Theme;
+import dev.santora.update.UpdateChecker;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -47,6 +48,10 @@ public final class Santora {
 
 		MenuAccess.install(openKey);
 
+		if (MusicEngine.get().config().updateCheck()) {
+			UpdateChecker.get().check();
+		}
+
 		ClientTickEvents.END_CLIENT_TICK.register(Santora::onClientTick);
 
 		LOGGER.info("[Santora] initialised");
@@ -54,6 +59,7 @@ public final class Santora {
 
 	private static void onClientTick(Minecraft mc) {
 		tryLoadLibrary(mc);
+		UpdateChecker.get().tick();
 
 		while (openKey.consumeClick()) {
 			SantoraPlatform platform = SantoraPlatform.Holder.get();

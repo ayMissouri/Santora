@@ -33,7 +33,7 @@ and keep it playing wherever you go.
 - **Now Playing HUD**: a draggable overlay that shows the current track anywhere on screen.
 - **Listen together**: start a party, share a code, and everyone hears the same music in sync. Mark it public and anyone on your server can find it.
 - **Make it yours**: pick a background and accent color, and dial the menu's opacity to see the game through it.
-- **Follows you everywhere**: keeps playing across dimensions, deaths, and world swaps.
+- **Works everywhere**: keeps playing across dimensions, deaths, and world swaps.
 
 ---
 
@@ -143,6 +143,10 @@ control Santora's volume independently of the rest of the game.
 2. Install **[Fabric API](https://modrinth.com/mod/fabric-api)**.
 3. Download the latest release and drop it into your mods folder.
 4. Launch the game and press **M**, or press the **♪** button in the top right corner to open the player.
+
+From then on Santora checks the [releases page](https://github.com/ayMissouri/Santora/releases/latest)
+when the game starts and shows a toast if a newer version is out. Turn it off under
+**Settings → About** if you'd rather it didn't.
 
 ---
 

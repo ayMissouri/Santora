@@ -32,6 +32,7 @@ public final class SantoraConfig {
 	private int hudOpacity = 90;
 
 	private boolean resumeOnLaunch = false;
+	private boolean updateCheck = true;
 	private boolean wasManual = false;
 	private String lastContextId = "";
 	private String lastTrackPath = "";
@@ -204,6 +205,14 @@ public final class SantoraConfig {
 
 	public void setResumeOnLaunch(boolean resume) {
 		this.resumeOnLaunch = resume;
+	}
+
+	public boolean updateCheck() {
+		return updateCheck;
+	}
+
+	public void setUpdateCheck(boolean check) {
+		this.updateCheck = check;
 	}
 
 	public boolean wasManual() {

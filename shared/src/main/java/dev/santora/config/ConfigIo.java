@@ -62,6 +62,7 @@ public final class ConfigIo {
 					getString(json, "hud_accent", ""), config.hudAccent()));
 			config.setHudOpacity(getInt(json, "hud_opacity", config.hudOpacity()));
 			config.setResumeOnLaunch(getBool(json, "resume_on_launch", config.resumeOnLaunch()));
+			config.setUpdateCheck(getBool(json, "update_check", config.updateCheck()));
 			config.setWasManual(getBool(json, "was_manual", config.wasManual()));
 			config.setLastContextId(getString(json, "last_context_id", config.lastContextId()));
 			config.setLastTrackPath(getString(json, "last_track_path", config.lastTrackPath()));
@@ -93,6 +94,7 @@ public final class ConfigIo {
 		json.addProperty("hud_accent", SantoraConfig.formatColor(config.hudAccent()));
 		json.addProperty("hud_opacity", config.hudOpacity());
 		json.addProperty("resume_on_launch", config.resumeOnLaunch());
+		json.addProperty("update_check", config.updateCheck());
 		json.addProperty("was_manual", config.wasManual());
 		json.addProperty("last_context_id", config.lastContextId());
 		json.addProperty("last_track_path", config.lastTrackPath());
